@@ -36,73 +36,6 @@ jax.config.update("jax_enable_x64", True)
 
 
 @dataclass(frozen=True)
-class HMCConfig:
-    '''Parameters for running (HMC) trajectories.
-
-    Parameters
-    ----------
-    N_steps : int
-        Number of integrator steps per trajectory.
-    eps : float
-        Integrator step size.
-    xi : float, optional
-        Omelyan integrator parameter. Required when integrator=omelyan.
-    integrator : {'leapfrog', 'omelyan'}, default='omelyan'
-        Choice of integrator for HMC evolution.
-    seed : int, default=2
-        Random seed for momentum generation and Metropolis accept/reject.
-    N_trajectories : int, default=1
-        Number of HMC trajectories to run.
-    metropolis : bool, default=True
-        Whether to apply Metropolis accept/reject
-        at the end of each trajectory.
-    record_H : bool, default=False
-        If True, store Hamiltonian values along each trajectory.
-    verbose : bool, default=False
-        If True, print progress information during HMC evolution.
-    '''
-    N_steps: int  # number of integrator steps per trajectory
-    eps: float  # integrator step size
-    xi: float | None = 0.1  # omelyan integrator parameter
-    integrator: str = 'omelyan'  # 'leapfrog' or 'omelyan'
-    # seed for random momentum/metropolis criteria generation
-    seed: int = 2  # default seed for hmc trajectories
-    N_trajectories: int = 1  # number of HMC trajectories to run
-    metropolis: bool = True  # whether to use Metropolis accept/reject
-    record_H: bool = False  # whether to record Hamiltonian at each step
-    verbose: bool = False  # whether to print progress information
-
-    def __post_init__(self):
-        '''
-        validate integrator choice
-        '''
-        valid_integrators = ['leapfrog', 'omelyan']
-        if self.integrator not in valid_integrators:
-            raise ValueError(f"Invalid integrator: {self.integrator}. "
-                             f"Choose from {valid_integrators}.")
-        if self.integrator == 'omelyan':
-            if self.xi is None:
-                raise ValueError("xi parameter must be provided for "
-                                 "omelyan integrator.")
-        if not isinstance(self.N_steps, numbers.Integral) \
-           or self.N_steps <= 0:
-            raise ValueError("N_steps must be positive int.")
-        if self.eps <= 0:
-            raise ValueError("eps must be positive.")
-        if not isinstance(self.seed, int):
-            raise TypeError("seed must be an integer.")
-        if not isinstance(self.N_trajectories, numbers.Integral) \
-           or self.N_trajectories <= 0:
-            raise ValueError("N_trajectories must be positive int.")
-        if not isinstance(self.metropolis, bool):
-            raise TypeError("metropolis must be a boolean.")
-        if not isinstance(self.record_H, bool):
-            raise TypeError("record_H must be a boolean.")
-        if not isinstance(self.verbose, bool):
-            raise TypeError("verbose must be a boolean.")
-
-
-@dataclass(frozen=True)
 class LatticeGeometry:
     '''Lattice geometry parameters.
 
@@ -151,20 +84,102 @@ class LatticeGeometry:
                              "must have the same shape.")
 
         D = len(self.length_arr)
-        V = jnp.prod(self.length_arr)
+
         # validate inputs
         if D <= 0:
             raise ValueError("Number of dimensions D must be positive.")
 
-        lat_shape = tuple((self.length_arr//self.spacing_arr).tolist())
+        ratio = self.length_arr / self.spacing_arr
+        if not jnp.all(ratio == jnp.floor(ratio)):
+            raise ValueError("Lattice lengths must be integer "
+                             "multiples of spacings in each dimension.")
+        lat_shape = tuple(int(x) for x in ratio.tolist())
         if lat_shape != tuple(jnp.array(lat_shape, dtype=int)):
             raise ValueError("Lattice lengths must be integer "
                              "multiples of spacings in each dimension.")
+
+        V = int(jnp.prod(jnp.array(lat_shape, dtype=int)))
 
         # set derived fields
         object.__setattr__(self, "D", D)
         object.__setattr__(self, "V", V)
         object.__setattr__(self, "lat_shape", lat_shape)
+
+
+# ---------- Phi4 model -------
+
+
+@dataclass(frozen=True)
+class HMCConfig:
+    '''Parameters for running (HMC) trajectories.
+
+    Parameters
+    ----------
+    N_steps : int
+        Number of integrator steps per trajectory.
+    eps : float
+        Integrator step size.
+    xi : float, optional
+        Omelyan integrator parameter. Required when integrator=omelyan.
+    integrator : {'leapfrog', 'omelyan'}, default='omelyan'
+        Choice of integrator for HMC evolution.
+    seed : int, default=2
+        Random seed for momentum generation and Metropolis accept/reject.
+    N_trajectories : int, default=1
+        Number of HMC trajectories to run.
+    metropolis : bool, default=True
+        Whether to apply Metropolis accept/reject
+        at the end of each trajectory.
+    record_H : bool, default=False
+        If True, store Hamiltonian values along each trajectory.
+    verbose : bool, default=False
+        If True, print progress information during HMC evolution.
+    '''
+    N_steps: int  # number of integrator steps per trajectory
+    # tau = N_steps * eps is the total trajectory length in "simulation time"
+    # and tau ~ 1 is a common choice
+    eps: float | None  # integrator step size
+    # 0.19 is a common choice for xi
+    xi: float | None = 0.1931833  # omelyan integrator parameter
+    integrator: str = 'omelyan'  # 'leapfrog' or 'omelyan'
+    # seed for random momentum/metropolis criteria generation
+    seed: int = 2  # default seed for hmc trajectories
+    N_trajectories: int = 1  # number of HMC trajectories to run
+    metropolis: bool = True  # whether to use Metropolis accept/reject
+    record_H: bool = False  # whether to record Hamiltonian at each step
+    verbose: bool = False  # whether to print progress information
+
+    def __post_init__(self):
+        '''
+        validate integrator choice
+        '''
+        valid_integrators = ['leapfrog', 'omelyan']
+        if self.integrator not in valid_integrators:
+            raise ValueError(f"Invalid integrator: {self.integrator}. "
+                             f"Choose from {valid_integrators}.")
+        if self.integrator == 'omelyan':
+            if self.xi is None:
+                raise ValueError("xi parameter must be provided for "
+                                 "omelyan integrator.")
+        if not isinstance(self.N_steps, numbers.Integral) \
+           or self.N_steps <= 0:
+            raise ValueError("N_steps must be positive int.")
+        if self.eps <= 0:
+            raise ValueError("eps must be positive.")
+        if self.eps is None:
+            # default to total trajectory length ~ 1
+            self.eps = 1/self.N_steps
+        if not isinstance(self.seed, int):
+            raise TypeError("seed must be an integer.")
+        if not isinstance(self.N_trajectories, numbers.Integral) \
+           or self.N_trajectories <= 0:
+            raise ValueError("N_trajectories must be positive int.")
+        if not isinstance(self.metropolis, bool):
+            raise TypeError("metropolis must be a boolean.")
+        if not isinstance(self.record_H, bool):
+            raise TypeError("record_H must be a boolean.")
+        if not isinstance(self.verbose, bool):
+            raise TypeError("verbose must be a boolean.")
 
 
 @dataclass(frozen=True)
@@ -189,3 +204,59 @@ class Phi4Params:
             raise TypeError("lam must be a float or int.")
         if not isinstance(self.kappa, numbers.Real):
             raise TypeError("kappa must be a float or int.")
+
+
+# ------------ Ising model -------
+
+
+@dataclass(frozen=True)
+class MetropMCConfig:
+    '''Configuration parameters for Metropolis MC steps.
+
+    Parameters
+    ----------
+    N_steps : int
+        Number of MC steps to run.
+    '''
+    # N_steps is the number of proposed flips,
+    # so it should be large enough to ensure good sampling 
+    # of the configuration space. ~ volume of the lattice
+    N_steps: int  # number of MC steps to run
+    seed: int = 2  # random seed for MC steps
+    verbose: bool = False
+
+    def __post_init__(self):
+        '''
+        validate MC configuration parameters
+        '''
+        if not isinstance(self.N_steps, numbers.Integral) \
+           or self.N_steps <= 0:
+            raise ValueError("N_steps must be a positive integer.")
+        if not isinstance(self.seed, int):
+            raise TypeError("seed must be an integer.")
+        if not isinstance(self.verbose, bool):
+            raise TypeError("verbose must be a boolean.")
+
+
+@dataclass(frozen=True)
+class IsingParams:
+    '''Physical parameters of the Ising model.
+
+    Parameters
+    ----------
+    kappa : float
+        Coupling constant controlling interaction strength.
+    h : float, optional
+        External magnetic field strength (default=0.0).
+    '''
+    kappa: float  # coupling constant (interaction strength)
+    h: float = 0.0  # external magnetic field strength
+
+    def __post_init__(self):
+        '''
+        validate physical parameters
+        '''
+        if not isinstance(self.kappa, numbers.Real):
+            raise TypeError("kappa must be a float or int.")
+        if not isinstance(self.h, numbers.Real):
+            raise TypeError("h must be a float or int.")

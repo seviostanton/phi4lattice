@@ -8,11 +8,13 @@ from dataclasses import dataclass, field, replace
 from typing import Dict, Optional
 from layout_utils import infer_layout
 from prng import make_keys
-import hmc as hmc
-import prng as prng
-import params as params
+import hmc
+import metropolis_mc as mmc
+import prng
+import params
 import energetics as eng
 import numbers
+import observables
 jax.config.update("jax_enable_x64", True)  # 64 bit
 
 
@@ -456,3 +458,420 @@ class Phi4Lattice:
         object.__setattr__(self, 'mom_x', mom_final)
         object.__setattr__(self, 'trajectory_history', traj_outs_dict)
         return self
+
+    def thermalize(self,
+                   cfg: params.HMCConfig,
+                   seed: int = None,
+                   randomize_keys: bool = False,
+                   threshold: float = 1,
+                   max_loops: int = 10,
+                   minimum_consecutive: int = 3):
+        """
+        Run repeated HMC evolutions until observables stabilize.
+        Currently only written for single configuration (n_keys=1) for simplicity of diagnostics.
+        """
+        measure_fns_dict = {"magnetization": lambda phi:
+                            observables.magnetization(
+                                        phi,
+                                        spatial_axes=self.spatial_axes,
+                                        volume=self.geom.V),
+                            "action": lambda phi: eng.phi4_action_core(
+                                                                phi,
+                                                                self.model,
+                                                                self.geom,
+                                                                self.shift,
+                                                                self.spatial_axes)[0]}
+        if self.n_keys != 1:
+            raise NotImplementedError("thermalize currently only implemented for n_keys=1 for simplicity of diagnostics.")
+        if cfg.N_trajectories < 3:
+            raise ValueError("cfg.N_trajectories must be at least 3 for "
+                             "thermalization to compute std.")
+
+        if seed is None:
+            seed = cfg.seed
+
+        # --- first pass
+        # initial run to populate trajectory history for error calculations
+        self.run_HMC(cfg=cfg,
+                     seed=seed,
+                     randomize_keys=randomize_keys,
+                     measure_fns_dict=measure_fns_dict)
+        summary = self.trajectory_history
+
+        # magnetization history of fields during trajectory
+        mag_hist = summary["magnetization"]
+
+        # average magnetization over trajectory
+        abs_mag_hist = jnp.abs(mag_hist)
+        abs_mag_mean = abs_mag_hist.mean()
+        abs_mag_std = abs_mag_hist.std()
+        mag_error = jnp.full_like(mag_hist, jnp.inf)  # inf error for first loop
+
+        # action history of fields during trajectory
+        action_hist = summary["action"]
+        action_mean = action_hist.mean()
+        action_std = action_hist.std()
+        action_error = jnp.full_like(action_hist, jnp.inf)  # inf error for first loop
+
+        # set as old values for error calculation
+        old_mag_mean = abs_mag_mean
+        old_action_mean = action_mean
+
+        n_loops = 1
+        n_consecutive = 0
+        # require at least 3 consecutive loops below threshold for thermalization
+        # minimum_consecutive = 3
+        current_seed = seed
+
+        loop_history_dict = {"abs_mag_mean": [abs_mag_mean],
+                            "abs_mag_std": [abs_mag_std],
+                            "mag_error": [mag_error],
+                            "action_mean": [action_mean],
+                            "action_std": [action_std],
+                            "action_error": [action_error]}
+        while n_loops < max_loops:
+            current_seed = current_seed + 1
+
+            self.run_HMC(cfg=cfg,
+                         seed=current_seed,
+                         randomize_keys=randomize_keys,
+                         measure_fns_dict=measure_fns_dict)
+            mag_hist = self.trajectory_history["magnetization"]
+            abs_mag_hist = jnp.abs(mag_hist)
+            abs_mag_mean = abs_mag_hist.mean()
+            abs_mag_std = abs_mag_hist.std()
+            action_hist = self.trajectory_history["action"]
+            action_mean = action_hist.mean()
+            action_std = action_hist.std()
+
+            # calculate relative errors compared to previous loop
+            # normalize by std so that we can use same threshold
+            # considering scaling by min(old,new std), more strict but less stable
+            mag_error = jnp.abs(abs_mag_mean - old_mag_mean) / jnp.maximum(abs_mag_std, 1e-8)
+            action_error = jnp.abs(action_mean - old_action_mean) / jnp.maximum(action_std, 1e-8)
+
+            # update old values for next loop's error calculation
+            old_mag_mean = abs_mag_mean
+            old_action_mean = action_mean
+
+            n_loops += 1
+            # store loop history
+            loop_history_dict["abs_mag_mean"].append(abs_mag_mean)
+            loop_history_dict["abs_mag_std"].append(abs_mag_std)
+            loop_history_dict["mag_error"].append(mag_error)
+            loop_history_dict["action_mean"].append(action_mean)
+            loop_history_dict["action_std"].append(action_std)
+            loop_history_dict["action_error"].append(action_error)
+            
+
+
+            # check if both errors are below the threshold
+            if bool(jnp.all((mag_error <= threshold) & (action_error <= threshold))):
+                n_consecutive += 1
+            else:                
+                n_consecutive = 0  # reset if either error exceeds threshold
+
+            if n_consecutive >= minimum_consecutive:
+                # early exit if thermalization criteria met
+                break
+
+        diagnostic_msg = {"thermalized": (n_consecutive >= minimum_consecutive),
+                          "n_trajectories": n_loops * cfg.N_trajectories,
+                          "mag_error": mag_error,
+                          "action_error": action_error,
+                          "loop_history": loop_history_dict}
+        object.__setattr__(self, 'thermalization_diagnostics', diagnostic_msg)
+        return self
+
+        
+    
+# --------- Ising model -------
+
+
+@dataclass
+class IsingLattice:
+    model: Optional[params.IsingParams] = None
+    geom: Optional[params.LatticeGeometry] = None
+    metrop_config: Optional[params.MetropMCConfig] = None
+
+    # mutable parameters/state
+    sigma_x: jnp.ndarray = field(init=False)
+    spatial_axes: tuple = field(init=False)
+    shift: int = field(init=False)
+
+    trajectory_history: Dict[str, jnp.ndarray] = field(
+                                                init=False,
+                                                default_factory=dict)
+
+    valid_dists: tuple = field(init=False, default=('all-up',
+                                                    'all-down',
+                                                    'checkerboard',
+                                                    'uniform',
+                                                    'zero-action'))
+
+    sigma_seed: int | jnp.ndarray | None = 0
+    n_keys: int = 1  # batch size (independent field configs)
+    sigma_dist: str = 'uniform'
+
+    mc_master_key: jnp.ndarray = field(init=False)
+
+    def __post_init__(self):
+        if self.model is None:
+            raise ValueError("model parameters must be provided.")
+        if self.geom is None:
+            raise ValueError("geometry parameters must be provided.")
+
+        # initialize sigma field configuration
+        if not isinstance(self.n_keys, numbers.Integral) or self.n_keys <= 0:
+            raise ValueError("n_keys must be positive integer.")
+        mc_master_key, mc_keys = make_keys(
+                                    self.n_keys,
+                                    self.sigma_seed,
+                                    randomize_keys=(self.sigma_seed is None))
+        sigma_x = self._generate_field_core(mc_keys,
+                                            self.geom.lat_shape,
+                                            distribution=self.sigma_dist)
+        object.__setattr__(self, 'mc_master_key', mc_master_key)
+        object.__setattr__(self, 'mc_keys', mc_keys)
+        object.__setattr__(self, "sigma_x", sigma_x)
+
+        # infer layout
+        spatial_axes, shift = infer_layout(self.sigma_x, self.geom.D)
+        object.__setattr__(self, 'spatial_axes',
+                           tuple(int(x) for x in spatial_axes))
+        object.__setattr__(self, 'shift', shift)
+
+    # field initialization methods
+    @staticmethod
+    def _generate_field_core(keys,
+                             lat_shape,
+                             distribution='uniform') -> jnp.ndarray:
+        if distribution in ('uniform', 'all-up', 'all-down'):
+            return prng.create_ising_field(keys,
+                                           lat_shape,
+                                           distribution=distribution)
+
+    def generate_field(self,
+                       N_fields: int,
+                       seed_or_key: int | jnp.ndarray | None = None,
+                       randomize_keys: bool = True,
+                       distribution: str = 'uniform'):
+        if distribution not in self.valid_dists:
+            raise ValueError(f"distribution must be one of {self.valid_dists};"
+                             f" got {distribution}.")
+        if N_fields <= 0 or not isinstance(N_fields, numbers.Integral):
+            raise ValueError("N_fields must be a positive integer.")
+        object.__setattr__(self, "sigma_dist", distribution)
+        object.__setattr__(self, "sigma_seed", seed_or_key)
+        object.__setattr__(self, "n_keys", N_fields)
+
+        master_key, keys = make_keys(N_fields, seed_or_key, randomize_keys)
+        object.__setattr__(self, "mc_master_key", master_key)
+        object.__setattr__(self, "mc_keys", keys)
+
+        sigma_xs = self._generate_field_core(keys,
+                                             self.geom.lat_shape,
+                                             distribution=distribution)
+        object.__setattr__(self, 'sigma_x', sigma_xs)
+
+        # infer layout
+        spatial_axes, shift = infer_layout(self.sigma_x, self.geom.D)
+        object.__setattr__(self, 'spatial_axes',
+                           tuple(int(x) for x in spatial_axes))
+        object.__setattr__(self, 'shift', shift)
+        return self
+
+# ----- metropolis MC evolution -------
+    def run_Metropolis_MC(self,
+                          cfg: params.MetropMCConfig,
+                          seed: int = None,
+                          randomize_keys: bool = False,
+                          measure_fns_dict: Dict[str, callable] = None,
+                          store_proposal_history: bool = False,
+                          thermalization_summary: bool = False):
+        if not isinstance(cfg, params.MetropMCConfig):
+            raise ValueError("cfg must be an instance of MetropMCConfig.")
+        if seed is None:
+            seed = cfg.seed
+        if measure_fns_dict is not None:
+            if not isinstance(measure_fns_dict, dict):
+                raise TypeError("measure_fns_dict must be a "
+                                "dict[str, Callable].")
+            for name, fn in measure_fns_dict.items():
+                if not callable(fn):
+                    raise TypeError(f"measure_fns_dict[{name}] "
+                                    "is not callable.")
+
+        sweep_master_key, sweep_keys = prng._make_traj_keys(
+                                                cfg.N_steps,
+                                                seed_or_key=seed,
+                                                randomize_keys=randomize_keys)
+        object.__setattr__(self, 'mc_master_key', sweep_master_key)
+
+        energy_fns = eng.make_ising_energy_fns
+        S_Fn, propose_flip_Fn, local_delta_S_Fn = energy_fns(self.model,
+                                           self.geom,
+                                           self.shift,
+                                           self.spatial_axes)
+
+        result = mmc.run_Metropolis_MC(sigma_x0=self.sigma_x,
+                                       sweep_keys=sweep_keys,
+                                       cfg=cfg,
+                                       S_Fn=S_Fn,
+                                       propose_flip_Fn=propose_flip_Fn,
+                                       local_delta_S_Fn=local_delta_S_Fn,
+                                       measure_fns_dict=measure_fns_dict,
+                                       store_proposal_history=store_proposal_history,
+                                       thermalization_summary=thermalization_summary)
+        sigma_final, traj_outs_dict = result
+        object.__setattr__(self, 'sigma_x', sigma_final)
+        object.__setattr__(self, 'trajectory_history', traj_outs_dict)
+        return self
+    
+
+    def thermalize(self,
+                cfg: params.MetropMCConfig,
+                seed: int = None,
+                randomize_keys: bool = False,
+                threshold: float = 1,
+                max_loops: int = 10,
+                minimum_consecutive: int = 3,
+                store_proposal_history: bool = False,
+                store_loop_history: bool = True,
+                store_error_history: bool = False):
+        """
+        Run repeated Metrop-MC evolutions until observables stabilize
+        -- no monotonic drift in magnetization or action.
+        """
+        # measure_fns_dict = {"magnetization": lambda phi:
+        #                     observables.magnetization(
+        #                                 phi,
+        #                                 spatial_axes=self.spatial_axes,
+        #                                 volume=self.geom.V),
+        #                     "action": lambda phi: eng.ising_action_core(
+        #                                                         phi,
+        #                                                         self.model,
+        #                                                         self.geom,
+        #                                                         self.shift,
+        #                                                         self.spatial_axes)[0]}
+        if seed is None:
+            seed = cfg.seed
+        # initial error values set to infinity to ensure at least one trajectory runs
+        # mag_error = jnp.inf
+        # action_error = jnp.inf
+
+        # --- first pass
+        # initial run to populate trajectory history for error calculations
+        self.run_Metropolis_MC(cfg=cfg,
+                     seed=seed,
+                     randomize_keys=randomize_keys,
+                    #  measure_fns_dict=measure_fns_dict,
+                     store_proposal_history=store_proposal_history,
+                     thermalization_summary=True)
+            # magnetization history of fields during trajectory
+        summary = self.trajectory_history
+        # mag_hist = self.trajectory_history["magnetization"]
+        # abs_mag_hist = jnp.abs(mag_hist)
+        # average magnetization over trajectory
+        # abs_mag_mean = abs_mag_hist.mean()
+        # abs_mag_std = abs_mag_hist.std()
+
+        abs_mag_mean = summary["abs_mag_mean"]/self.geom.V
+        abs_mag_std = summary["abs_mag_std"]/self.geom.V
+        mag_error = jnp.full_like(abs_mag_mean, jnp.inf)  # set initial error to inf for first loop
+        # action history of fields during trajectory
+        # action_hist = self.trajectory_history["action"]
+        action_mean = summary["action_mean"]
+        action_std = summary["action_std"]
+        action_error = jnp.full_like(action_mean, jnp.inf)  # set initial error to inf for first loop
+
+        # set as old values for error calculation
+        old_mag_mean = abs_mag_mean
+        # old_mag_std = abs_mag_std
+
+        old_action_mean = action_mean
+        # old_action_std = action_std
+        if store_loop_history:
+            loop_history_dict = {"abs_mag_mean": [abs_mag_mean],
+                                "abs_mag_std": [abs_mag_std],
+                                "action_mean": [action_mean],
+                                "action_std": [action_std]}
+            if store_error_history:
+                loop_history_dict["mag_error"] = [mag_error]
+                loop_history_dict["action_error"] = [action_error]
+        else:
+            loop_history_dict = {}
+
+        n_loops = 1
+        n_consecutive = 0
+        # require at least 3 consecutive loops below threshold for thermalization
+        current_seed = seed
+        # swap to jax.lax.while_loop
+        while n_loops < max_loops:
+            current_seed = current_seed + 1
+
+            self.run_Metropolis_MC(cfg=cfg,
+                         seed=current_seed,
+                         randomize_keys=randomize_keys,
+                        #  measure_fns_dict=measure_fns_dict,
+                         store_proposal_history=store_proposal_history,
+                         thermalization_summary=True)
+            # mag_hist = self.trajectory_history["magnetization"]
+            # abs_mag_hist = jnp.abs(mag_hist)
+            # abs_mag_mean = abs_mag_hist.mean()
+            # abs_mag_std = abs_mag_hist.std()
+            # action_hist = self.trajectory_history["action"]
+            # action_mean = action_hist.mean()
+            # action_std = action_hist.std()
+
+            summary = self.trajectory_history
+            abs_mag_mean = summary["abs_mag_mean"]/self.geom.V
+            abs_mag_std = summary["abs_mag_std"]/self.geom.V
+            action_mean = summary["action_mean"]
+            action_std = summary["action_std"]
+
+            # calculate relative errors compared to previous loop
+            # normalize by std so that we can use same threshold
+            # considering scaling by min(old,new std), more strict but less stable
+            mag_error = jnp.abs(abs_mag_mean - old_mag_mean) / jnp.maximum(abs_mag_std, 1e-8)
+            action_error = jnp.abs(action_mean - old_action_mean) / jnp.maximum(action_std, 1e-8)
+
+            # update old values for next loop's error calculation
+            old_mag_mean = abs_mag_mean
+            # old_mag_std = abs_mag_std
+            old_action_mean = action_mean
+            # old_action_std = action_std
+
+            n_loops += 1
+            if store_loop_history:
+                loop_history_dict["action_mean"].append(action_mean)
+                loop_history_dict["action_std"].append(action_std)
+                loop_history_dict["abs_mag_mean"].append(abs_mag_mean)
+                loop_history_dict["abs_mag_std"].append(abs_mag_std)
+                if store_error_history:
+                    loop_history_dict["mag_error"].append(mag_error)
+                    loop_history_dict["action_error"].append(action_error)
+
+
+            # check if both errors are below the threshold
+            if bool(jnp.all((mag_error<= threshold) & (action_error <= threshold))):
+                n_consecutive += 1
+            else:                
+                n_consecutive = 0  # reset if either error exceeds threshold
+
+            if n_consecutive >= minimum_consecutive:
+                # early exit if thermalization criteria met
+                break
+        
+        # convert loop history lists to arrays for easier analysis downstream
+        if store_loop_history:
+            loop_history_dict = {key: jnp.stack(value)
+                                for key, value in loop_history_dict.items()}
+        thermalization_diagnostics = {"thermalized": (n_consecutive >= minimum_consecutive),
+                                      "n_loops": n_loops,
+                                      "final_mag_error": mag_error,
+                                      "final_action_error": action_error,
+                                      "history": loop_history_dict}
+        object.__setattr__(self, 'thermalization_diagnostics', thermalization_diagnostics)
+        return self
+

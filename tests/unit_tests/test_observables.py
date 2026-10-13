@@ -30,7 +30,7 @@ class TestMagnetization(unittest.TestCase):
     def test_zero_field(self):
         self.lat.constant_phi(0.0)
         phi_x = self.lat.phi_x
-        m = magnetization(phi_x, self.D)
+        m = magnetization(phi_x, spatial_axes=self.lat.spatial_axes)
         m_manual = jnp.zeros_like(m)
         self.assertTrue(jnp.allclose(m, m_manual, atol=1e-5))
 
@@ -39,7 +39,7 @@ class TestMagnetization(unittest.TestCase):
         self.lat.constant_phi(c)
         phi_x = self.lat.phi_x
         V = self.lat.geom.V
-        m = magnetization(phi_x, self.D)
+        m = magnetization(phi_x, spatial_axes=self.lat.spatial_axes)
         m_manual = jnp.full_like(m, c*V, dtype=jnp.float64)
         self.assertTrue(jnp.allclose(m, m_manual, atol=1e-2))
 
@@ -48,7 +48,7 @@ class TestMagnetization(unittest.TestCase):
                                dist='uniform',
                                randomize_keys=True)
         phi_x = self.lat.phi_x
-        m = magnetization(phi_x, self.D)
+        m = magnetization(phi_x, spatial_axes=self.lat.spatial_axes)
         m_manual = jnp.zeros_like(m)
         # std for uniform()
         var_uniform = 1.0/3.0
