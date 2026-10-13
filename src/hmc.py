@@ -374,9 +374,9 @@ def run_HMC_trajectories_core(phi0: jnp.ndarray,
         return (mom_fx, phi_fx), out
 
     (mom_final, phi_final), traj_outs_dict = lax.scan(
-                                                    one_traj,
-                                                    (mom0, phi0),
-                                                    xs=traj_keys,
-                                                    length=cfg.N_trajectories
-                                                    )
+        one_traj,
+        (mom0, phi0),
+        xs=traj_keys,
+        length=cfg.N_trajectories
+    )
     return (mom_final, phi_final), traj_outs_dict

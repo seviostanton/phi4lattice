@@ -12,7 +12,7 @@ from pathlib import Path
 
 ising_kappa_values = [0.1, 0.2, 0.3, 0.44,
                       0.5, 0.6, 0.7, 0.8]
-kappa_values = [x/2 for x in ising_kappa_values]
+kappa_values = [x / 2 for x in ising_kappa_values]
 lambda_values = [0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 100.0]
 eps2_values_L8 = [
     0.126,   # lambda = 0.1
@@ -40,14 +40,14 @@ eps2_values_L32 = [
     0.0205,  # lambda = 2.0
     0.0140,  # lambda = 5.0
     0.0065,  # lambda = 10.0
-    0.00066, # lambda = 100.0
+    0.00066,  # lambda = 100.0
 ]
 eps2_values_L64 = []
 
 eps2_dict = {8: eps2_values_L8,
-              16: eps2_values_L16,
-            32: eps2_values_L32,
-            64: eps2_values_L64}
+             16: eps2_values_L16,
+             32: eps2_values_L32,
+             64: eps2_values_L64}
 
 
 # Lengths = [8, 16, 32, 64]
@@ -71,7 +71,7 @@ phi_dists = ['uniform', 'all-up']
 
 
 def append_row_csv(row: dict,
-                      out_path: str):
+                   out_path: str):
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     file_exists = out_path.exists()
@@ -81,6 +81,7 @@ def append_row_csv(row: dict,
         if not file_exists:
             writer.writeheader()
         writer.writerow(row)
+
 
 result_dict = defaultdict(list)
 for L in lengths:
@@ -95,50 +96,48 @@ for L in lengths:
 
                     model = Phi4Params(kappa=kappa, lam=lam)
                     L_array = jnp.array([L, L], dtype=int)
-                    geom = LatticeGeometry(spacing_arr=a_array, length_arr=L_array)
+                    geom = LatticeGeometry(
+                        spacing_arr=a_array, length_arr=L_array)
                     if dist == 'uniform':
                         lat = Phi4Lattice(model=model,
-                                    geom=geom,
-                                    n_keys=batch_size,
-                                    phi_dist=dist,
-                                    phi_seed=np.random.randint(0, 10**5))
+                                          geom=geom,
+                                          n_keys=batch_size,
+                                          phi_dist=dist,
+                                          phi_seed=np.random.randint(0, 10**5))
                     elif dist == 'all-up':
                         lat = Phi4Lattice(model=model,
-                                    geom=geom,
-                                    n_keys=batch_size)
+                                          geom=geom,
+                                          n_keys=batch_size)
                         lat.constant_phi(constant=1.0)
 
                     cfg = HMCConfig(eps=eps,
                                     xi=0.1931833,
                                     integrator='omelyan',
-                                    N_steps=round(1/eps),
+                                    N_steps=round(1 / eps),
                                     N_trajectories=10**2,
                                     metropolis=True,
                                     record_H=False,
                                     verbose=False,
                                     seed=np.random.randint(0, 10**5))
                     lat.thermalize(cfg=cfg,
-                                max_loops=10**4,
-                                threshold=1,
-                                minimum_consecutive=3,
-                                randomize_keys=False)
+                                   max_loops=10**4,
+                                   threshold=1,
+                                   minimum_consecutive=3,
+                                   randomize_keys=False)
                     diagnostics = lat.thermalization_diagnostics
 
                     row = {"L": L,
-                        "phi_dist": dist,
-                        "kappa": float(kappa),
-                        "lam": float(lam),
-                        "cfg_eps": float(cfg.eps),
-                        "thermalized": bool(diagnostics["thermalized"]),
-                        "N_traj_to_thermalize": int(diagnostics["n_trajectories"]),
-                        "phi_seed": lat.phi_seed,
-                        "hmc_seed": cfg.seed,
-                        }
-                    append_row_csv(row, out_path="results/phi4_thermalization_estimate.csv")
-                
-
-
-
+                           "phi_dist": dist,
+                           "kappa": float(kappa),
+                           "lam": float(lam),
+                           "cfg_eps": float(cfg.eps),
+                           "thermalized": bool(diagnostics["thermalized"]),
+                           "N_traj_to_thermalize": int(diagnostics["n_trajectories"]),
+                           "phi_seed": lat.phi_seed,
+                           "hmc_seed": cfg.seed,
+                           }
+                    append_row_csv(
+                        row, out_path="results/phi4_thermalization_estimate.csv")
 
 
 # model = Phi4Params(kappa = 0.22, lam = 1.0)
@@ -176,7 +175,7 @@ for L in lengths:
 #                         geom=geom,
 #                         n_keys=1,
 #                         sigma_dist=dist)
-            
+
 #             seed = np.random.randint(0, 10**5)
 
 #             cfg = HMCConfig(

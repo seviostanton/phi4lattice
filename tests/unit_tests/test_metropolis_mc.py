@@ -34,12 +34,12 @@ class TestMetropolis_MC(unittest.TestCase):
                                        seed=seed)
         sigma_new = create_ising_field(L_array=l_array,
                                        batch_size=batch_size,
-                                       seed=seed+1)
+                                       seed=seed + 1)
         delta_S_expected = S_new - S_old
         sigma_accepted, mask, delta_S = metropolis_mc.Metropolis_delta_S(delta_S_expected,
-                                                                 sigma_old,
-                                                                 sigma_new,
-                                                                 r_key)
+                                                                         sigma_old,
+                                                                         sigma_new,
+                                                                         r_key)
         self.assertTrue(jnp.all(mask))
         self.assertTrue(jnp.array_equal(sigma_accepted, sigma_new))
         self.assertTrue(jnp.all(delta_S < 0))
@@ -62,12 +62,12 @@ class TestMetropolis_MC(unittest.TestCase):
                                        seed=seed)
         sigma_new = create_ising_field(L_array=l_array,
                                        batch_size=batch_size,
-                                       seed=seed+1)
+                                       seed=seed + 1)
         delta_S_expected = S_new - S_old
         sigma_accepted, mask, delta_S = metropolis_mc.Metropolis_delta_S(delta_S_expected,
-                                                                 sigma_old,
-                                                                 sigma_new,
-                                                                 r_key)
+                                                                         sigma_old,
+                                                                         sigma_new,
+                                                                         r_key)
         self.assertTrue(jnp.all(mask))
         self.assertTrue(jnp.array_equal(sigma_accepted, sigma_new))
         self.assertTrue(jnp.all(delta_S == 0))

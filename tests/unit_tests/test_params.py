@@ -141,7 +141,7 @@ class TestLatticeGeometry(unittest.TestCase):
         geom = params.LatticeGeometry(spacing_arr=spacing, length_arr=length)
         self.assertEqual(geom.D, D)
         self.assertEqual(geom.V, 4**D)
-        self.assertEqual(geom.lat_shape, tuple([4]*D))
+        self.assertEqual(geom.lat_shape, tuple([4] * D))
 
     def test_single_dimension(self):
         spacing = jnp.array([1])

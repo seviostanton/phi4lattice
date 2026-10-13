@@ -86,15 +86,15 @@ def omelyan_integrator(mom_x0: jnp.ndarray,
         mom_x_p, phi_x_p = state
 
         # I1(ξ eps)
-        phi_x_p = phi_x_p + eps * xi*mom_x_p
+        phi_x_p = phi_x_p + eps * xi * mom_x_p
         # I2(eps/2)
         mom_x_p = mom_x_p - eps / 2 * grad_S_Fn(phi_x_p)
         # I1((1-2ξ)eps)
-        phi_x_p = phi_x_p + ((1-2*xi)*eps)*mom_x_p
+        phi_x_p = phi_x_p + ((1 - 2 * xi) * eps) * mom_x_p
         # I2(eps/2)
         mom_x_p = mom_x_p - eps / 2 * grad_S_Fn(phi_x_p)
         # I1(ξ eps)
-        phi_x_p = phi_x_p + eps*xi*mom_x_p
+        phi_x_p = phi_x_p + eps * xi * mom_x_p
 
         if record_H:
             S_p = S_Fn(phi_x_p)
@@ -193,14 +193,14 @@ def leapfrog_integrator(mom_x0: jnp.ndarray,
         mom_x_p, phi_x_p = state
 
         # I1 first half step; phi updates
-        phi_x_p = phi_x_p + eps/2 * mom_x_p
+        phi_x_p = phi_x_p + eps / 2 * mom_x_p
 
         # I2 pi updates whole step
 
-        mom_x_p = mom_x_p - eps*grad_S_Fn(phi_x_p)
+        mom_x_p = mom_x_p - eps * grad_S_Fn(phi_x_p)
 
         # I1 second half step; phi updates again
-        phi_x_p = phi_x_p + eps/2 * mom_x_p
+        phi_x_p = phi_x_p + eps / 2 * mom_x_p
 
         # Compute updated H after step
         if record_H:

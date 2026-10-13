@@ -19,7 +19,7 @@ class TestMagnetization(unittest.TestCase):
     D = random_basic.randint(1, 5)
     L = random_basic.randint(1, 5)
     a_arr = jnp.ones(D, dtype=int)
-    l_arr = jnp.ones(D, dtype=int)*L
+    l_arr = jnp.ones(D, dtype=int) * L
     n_fields = random_basic.randint(1, 5)
     lat = lattice.Phi4Lattice(spacing_arr=a_arr,
                               length_arr=l_arr,
@@ -40,7 +40,7 @@ class TestMagnetization(unittest.TestCase):
         phi_x = self.lat.phi_x
         V = self.lat.geom.V
         m = magnetization(phi_x, spatial_axes=self.lat.spatial_axes)
-        m_manual = jnp.full_like(m, c*V, dtype=jnp.float64)
+        m_manual = jnp.full_like(m, c * V, dtype=jnp.float64)
         self.assertTrue(jnp.allclose(m, m_manual, atol=1e-2))
 
     def test_random_uniform_field(self):
@@ -51,11 +51,11 @@ class TestMagnetization(unittest.TestCase):
         m = magnetization(phi_x, spatial_axes=self.lat.spatial_axes)
         m_manual = jnp.zeros_like(m)
         # std for uniform()
-        var_uniform = 1.0/3.0
+        var_uniform = 1.0 / 3.0
         m_var = self.lat.geom.V * var_uniform
         m_sigma = jnp.sqrt(m_var)
         # check that magnetizations are within 5 sigma of 0
-        self.assertTrue(jnp.allclose(m, m_manual, atol=5*m_sigma))
+        self.assertTrue(jnp.allclose(m, m_manual, atol=5 * m_sigma))
 
 
 # class TestBinderCumulant(unittest.TestCase):

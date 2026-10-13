@@ -168,7 +168,7 @@ class HMCConfig:
             raise ValueError("eps must be positive.")
         if self.eps is None:
             # default to total trajectory length ~ 1
-            self.eps = 1/self.N_steps
+            self.eps = 1 / self.N_steps
         if not isinstance(self.seed, int):
             raise TypeError("seed must be an integer.")
         if not isinstance(self.N_trajectories, numbers.Integral) \
@@ -219,7 +219,7 @@ class MetropMCConfig:
         Number of MC steps to run.
     '''
     # N_steps is the number of proposed flips,
-    # so it should be large enough to ensure good sampling 
+    # so it should be large enough to ensure good sampling
     # of the configuration space. ~ volume of the lattice
     N_steps: int  # number of MC steps to run
     seed: int = 2  # random seed for MC steps

@@ -202,7 +202,7 @@ def make_ising_energy_fns(model: params.IsingParams,
                                    minval=0,
                                    maxval=geom.lat_shape[mu])
                 for mu in range(geom.D)
-                )
+            )
             old_spin = sigma_x[site_coords]
             # flip spin at site
             sigma_prop = sigma_x.at[site_coords].set(-old_spin)
@@ -226,8 +226,8 @@ def make_ising_energy_fns(model: params.IsingParams,
         return sigma_prop, site_coords, old_spin
 
     def local_delta_S_Fn(sigma_x: jnp.ndarray,
-                       site_coords: tuple[jnp.ndarray, ...]
-                       ) -> jnp.ndarray:
+                         site_coords: tuple[jnp.ndarray, ...]
+                         ) -> jnp.ndarray:
         # compute change in action from flipping spin at site
         # only need to compute change in local terms involving
         # flipped spin and neighbors
@@ -244,12 +244,12 @@ def make_ising_energy_fns(model: params.IsingParams,
 
                 minus_mu_coords = list(site_coords)
                 minus_mu_coords[mu] = (minus_mu_coords[mu] - 1) % L_mu
-                
+
                 plus_coords = tuple(plus_mu_coords)
                 minus_coords = tuple(minus_mu_coords)
 
                 neighbor_sum += sigma_x[plus_coords] + sigma_x[minus_coords]
-            
+
         else:
             batch_size = sigma_x.shape[0]
             batch_idxs = jnp.arange(batch_size)
@@ -265,7 +265,7 @@ def make_ising_energy_fns(model: params.IsingParams,
 
                 minus_mu_coords = list(site_coords)
                 minus_mu_coords[mu] = (minus_mu_coords[mu] - 1) % L_mu
-                
+
                 plus_coords = (batch_idxs, *tuple(plus_mu_coords))
                 minus_coords = (batch_idxs, *tuple(minus_mu_coords))
 

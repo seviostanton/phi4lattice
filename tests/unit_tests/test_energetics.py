@@ -65,8 +65,8 @@ class TestAction(unittest.TestCase):
         # K = -kappa * sum_x phi_x * (phi_{x+}+phi_{x-}
         # + phi_{y+}+phi_{y-})
         # each site contributes -kappa * (4*phi^2); total sites = Lx*Ly
-        total_sites = lat_shape[0]*lat_shape[1]
-        K_manual = -kappa * (4*fill_value**2) * total_sites
+        total_sites = lat_shape[0] * lat_shape[1]
+        K_manual = -kappa * (4 * fill_value**2) * total_sites
         U_manual = phi_x ** 2 + lam * (phi_x ** 2 - 1.0) ** 2
         U_manual = U_manual.sum()
         S_manual = K_manual + U_manual
@@ -113,7 +113,7 @@ class TestAction(unittest.TestCase):
         total_sites = 1
         for L in lat_shape:
             total_sites *= L
-        K_manual = -kappa * (2*D*fill_value**2) * total_sites
+        K_manual = -kappa * (2 * D * fill_value**2) * total_sites
         U_manual = phi_x ** 2 + lam * (phi_x ** 2 - 1.0) ** 2
         U_manual = U_manual.sum()
         S_manual = K_manual + U_manual
@@ -161,7 +161,7 @@ class TestAction(unittest.TestCase):
         total_sites = 1
         for L in lat_shape:
             total_sites *= L
-        K_manual = -kappa * (2*D*fill_value**2) * total_sites
+        K_manual = -kappa * (2 * D * fill_value**2) * total_sites
         U_manual = phi_x ** 2 + lam * (phi_x ** 2 - 1.0) ** 2
         U_manual = U_manual.sum()
         S_manual = K_manual + U_manual
@@ -213,7 +213,7 @@ class TestAction(unittest.TestCase):
             phi_x_single = field[0]
             phi_x.append(phi_x_single)
             # hand-checks
-            K_manual_single = -kappa * (2*D*fill_value**2) * total_sites
+            K_manual_single = -kappa * (2 * D * fill_value**2) * total_sites
             U_single = phi_x_single ** 2 + lam * (phi_x_single ** 2 - 1.0) ** 2
             U_manual_single = U_single.sum()
             S_manual_single = K_manual_single + U_manual_single
@@ -314,21 +314,21 @@ class TestAction(unittest.TestCase):
         shifts = []
         for d in range(D):
             L_d = L_array[d]
-            shift_d = random_basic.randint(1, L_d-1)
+            shift_d = random_basic.randint(1, L_d - 1)
             shifts.append(shift_d)
         # pad shifts for non-spatial dims
-        total_shifts = [0]*shift + shifts
+        total_shifts = [0] * shift + shifts
         phi_x_shifted = jnp.roll(phi_x,
                                  shift=total_shifts,
                                  axis=tuple(range(phi_x.ndim)))
 
         S_shifted, K_shifted, W_shifted = phi4_action_core(
-                                                    phi_x_shifted,
-                                                    model=model,
-                                                    geom=geom,
-                                                    shift=shift,
-                                                    spatial_axes=spatial_axes
-                                                    )
+            phi_x_shifted,
+            model=model,
+            geom=geom,
+            shift=shift,
+            spatial_axes=spatial_axes
+        )
 
         self.assertTrue(jnp.allclose(S_orig, S_shifted, atol=1e-5))
         self.assertTrue(jnp.allclose(K_orig, K_shifted, atol=1e-5))
@@ -340,7 +340,7 @@ class TestGradAction(unittest.TestCase):
     D = random_basic.randint(1, 7)
     L = random_basic.randint(1, 7)
     a_arr = jnp.ones(D, dtype=int)
-    l_arr = jnp.ones(D, dtype=int)*L
+    l_arr = jnp.ones(D, dtype=int) * L
 
     kappa = random_basic.uniform(-10, 10)
     lam = random_basic.uniform(-10, 1.0)
@@ -451,7 +451,7 @@ class TestIsingAction(unittest.TestCase):
                                           upper=4,
                                           seed=random_seed)
         # need L=0 mod 4 i think
-        L_array = jnp.array(L_array_list)*4
+        L_array = jnp.array(L_array_list) * 4
         batch_size = random_basic.randint(1, 5)
         model = params.IsingParams(kappa=kappa, h=h)
         geom = params.LatticeGeometry(spacing_arr=jnp.ones(D, dtype=int),
@@ -522,10 +522,10 @@ class TestIsingAction(unittest.TestCase):
                                                    shift=shift,
                                                    spatial_axes=spatial_axes)
         S_Fn, _, _ = make_ising_energy_fns(
-                                        model=model,
-                                        geom=geom,
-                                        shift=shift,
-                                        spatial_axes=spatial_axes)
+            model=model,
+            geom=geom,
+            shift=shift,
+            spatial_axes=spatial_axes)
         S_fn = S_Fn(sigma_x)
 
         self.assertTrue(jnp.allclose(S_fn, S_core, atol=1e-5))
@@ -548,10 +548,10 @@ class TestIsingAction(unittest.TestCase):
         geom = params.LatticeGeometry(spacing_arr=jnp.ones(D, dtype=int),
                                       length_arr=L_array)
         _, propose_flip_Fn, _ = make_ising_energy_fns(
-                                    model=model,
-                                    geom=geom,
-                                    shift=shift,
-                                    spatial_axes=spatial_axes)
+            model=model,
+            geom=geom,
+            shift=shift,
+            spatial_axes=spatial_axes)
         site_key = jax.random.PRNGKey(random_seed)
         sigma_prop, site_coords, _ = propose_flip_Fn(sigma_x, site_key)
         # check that exactly one spin is flipped in each field

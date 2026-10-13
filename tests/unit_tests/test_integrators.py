@@ -88,7 +88,7 @@ class TestOmelyanIntegrator(unittest.TestCase):
         H_initial = H_hist[0]
         max_dev = float(jnp.max(jnp.abs(H_hist - H_initial)))
         rel_dev = max_dev / float(jnp.abs(H_initial))
-        self.assertLessEqual(rel_dev, 10*eps**2)
+        self.assertLessEqual(rel_dev, 10 * eps**2)
 
 
 class TestLeapfrogIntegrator(unittest.TestCase):
@@ -141,7 +141,7 @@ class TestLeapfrogIntegrator(unittest.TestCase):
         H_initial = H_hist[0]
         max_dev = float(jnp.max(jnp.abs(H_hist - H_initial)))
         rel_dev = max_dev / float(jnp.abs(H_initial))
-        self.assertLessEqual(rel_dev, 10*eps**2)
+        self.assertLessEqual(rel_dev, 10 * eps**2)
 
 
 if __name__ == '__main__':

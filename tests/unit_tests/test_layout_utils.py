@@ -22,7 +22,7 @@ class TestInferLayout(unittest.TestCase):
 
         spatial_axes, shift = infer_layout(phi_x, D=D)
 
-        expected_spatial_axes = tuple(range(1, D+1))
+        expected_spatial_axes = tuple(range(1, D + 1))
         self.assertEqual(spatial_axes, expected_spatial_axes)
         self.assertEqual(shift, 1)
 

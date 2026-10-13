@@ -13,7 +13,7 @@ sys.path.append('src')
 #                 0.4, 0.36, 0.32, 0.30, 0.28, 0.26]
 # kappa_values = [0.85, 0.5, 0.44, 0.36, 0.28]
 # kappa_values = [0.85, 0.44, 0.28]
-kappa_values = [0.44]/2
+kappa_values = [0.44] / 2
 # lattice_sizes = [8, 16, 32, 64]
 lattice_sizes = [8, 16, 32, 64]
 # dist_type = ['uniform', 'all-up']
@@ -58,7 +58,7 @@ def make_lattice(kappa, lam, L, dist):
 
 def make_cfg(seed, N_trajectories, eps):
     cfg = HMCConfig(
-        N_steps=round(1/eps),  # rounds to nearest integer
+        N_steps=round(1 / eps),  # rounds to nearest integer
         eps=eps,
         xi=0.1931833,
         integrator="omelyan",   # or "leapfrog"

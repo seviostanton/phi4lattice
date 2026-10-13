@@ -63,6 +63,7 @@ def Metropolis_delta_S(delta_S: jnp.ndarray,
     sigma_accepted = jnp.where(mask, sigma_new, sigma_old)
     return sigma_accepted, mask, delta_S
 
+
 def MC_step(sigma_x: jnp.ndarray,
             step_key_pair: tuple[jnp.ndarray, jnp.ndarray],
             *,  # required named args
@@ -102,14 +103,12 @@ def MC_step(sigma_x: jnp.ndarray,
 
     site_key, r_key = step_key_pair
 
-
     # propose new configuration by flipping sign of random site
     sigma_x_new, site_coords, old_spin = propose_flip_Fn(sigma_x,
-                                               site_key)
+                                                         site_key)
 
     # compute local change in action from proposed flip
     delta_S = local_delta_S_Fn(sigma_x, site_coords)
-
 
     # accept or reject new configuration
     sigma_acc, accept_mask, delta_S = Metropolis_delta_S(delta_S,
@@ -221,7 +220,6 @@ def run_Metropolis_MC_core(sigma_x0: jnp.ndarray,
     #               "sum_S": 0.0,
     #               "sum_S2": 0.0}
 
-    
     def one_step_thermalization(carry, step_key_pair):
         sigma_x = carry["sigma_x"]
         S_current = carry["S_current"]
@@ -234,13 +232,13 @@ def run_Metropolis_MC_core(sigma_x0: jnp.ndarray,
         site_key, r_key = step_key_pair
 
         sigma_prop, site_coords, old_spin = propose_flip_Fn(sigma_x,
-                                                  site_key)
+                                                            site_key)
         delta_S = local_delta_S_Fn(sigma_x, site_coords)
         sigma_acc, accept_mask, delta_S = Metropolis_delta_S(delta_S,
-                                                                sigma_x,
-                                                                sigma_prop,
-                                                                r_key)
-        
+                                                             sigma_x,
+                                                             sigma_prop,
+                                                             r_key)
+
         accepted = accept_mask.reshape(delta_S.shape)
         S_new = jnp.where(accepted, S_current + delta_S, S_current)
         sum_S += S_new
@@ -253,7 +251,6 @@ def run_Metropolis_MC_core(sigma_x0: jnp.ndarray,
         sum_abs_M += abs_M_new
         sum_abs_M2 += abs_M_new**2
 
-
         carry = {"sigma_x": sigma_acc,
                  "S_current": S_new,
                  "sum_S": sum_S,
@@ -262,7 +259,7 @@ def run_Metropolis_MC_core(sigma_x0: jnp.ndarray,
                  "sum_abs_M": sum_abs_M,
                  "sum_abs_M2": sum_abs_M2}
         return carry, None
-    
+
     if thermalization_summary:
         S_0 = S_Fn(sigma_x0)
         zero_S = jnp.zeros_like(S_0)
@@ -273,7 +270,6 @@ def run_Metropolis_MC_core(sigma_x0: jnp.ndarray,
             M_0 = sigma_x0.sum(axis=tuple(range(1, sigma_x0.ndim)))
             zero_M = jnp.zeros_like(M_0)
 
-
         init_carry = {"S_current": S_0,
                       "sigma_x": sigma_x0,
                       "sum_S": zero_S,
@@ -282,9 +278,9 @@ def run_Metropolis_MC_core(sigma_x0: jnp.ndarray,
                       "sum_abs_M": zero_M,
                       "sum_abs_M2": zero_M}
         final_carry, _ = lax.scan(one_step_thermalization,
-                                          init_carry,
-                                          xs=sweep_keys,
-                                          length=cfg.N_steps)
+                                  init_carry,
+                                  xs=sweep_keys,
+                                  length=cfg.N_steps)
         action_mean = final_carry["sum_S"] / cfg.N_steps
         action_var = (final_carry["sum_S2"] / cfg.N_steps) - action_mean**2
         # floating point errors can make action_var slightly negative,
@@ -292,14 +288,15 @@ def run_Metropolis_MC_core(sigma_x0: jnp.ndarray,
         action_std = jnp.sqrt(jnp.maximum(action_var, 1e-8))
 
         abs_mag_mean = final_carry["sum_abs_M"] / cfg.N_steps
-        abs_mag_var = (final_carry["sum_abs_M2"] / cfg.N_steps) - abs_mag_mean**2
+        abs_mag_var = (final_carry["sum_abs_M2"] /
+                       cfg.N_steps) - abs_mag_mean**2
         abs_mag_std = jnp.sqrt(jnp.maximum(abs_mag_var, 1e-8))
 
         summary_dict = {"action_mean": action_mean,
-                   "action_std": action_std,
-                   "abs_mag_mean": abs_mag_mean,
-                   "abs_mag_std": abs_mag_std
-                   }
+                        "action_std": action_std,
+                        "abs_mag_mean": abs_mag_mean,
+                        "abs_mag_std": abs_mag_std
+                        }
         return final_carry["sigma_x"], summary_dict
 
     def one_step(sigma_x, step_key_pair):
@@ -319,12 +316,11 @@ def run_Metropolis_MC_core(sigma_x0: jnp.ndarray,
                                       length=cfg.N_steps)
     return sigma_final, out_dicts
 
-
     # def one__step(carry, step_key_pair):
     #     sigma_x = carry["sigma_x"]
     #     S_current = carry["S_current"]
     #     site_key, r_key = step_key_pair
-        
+
     #     sigma_prop, site_coords = propose_flip_Fn(sigma_x,
     #                                               site_key)
     #     delta_S = local_delta_S_Fn(sigma_x, site_coords)
@@ -338,7 +334,7 @@ def run_Metropolis_MC_core(sigma_x0: jnp.ndarray,
     #     S_new = jnp.where(accepted,
     #                       S_current + delta_S,
     #                       S_current)
-        
+
     #     sum_S += S_new
     #     sum_S2 += S_new**2
 
@@ -346,5 +342,4 @@ def run_Metropolis_MC_core(sigma_x0: jnp.ndarray,
     #              "S_current": S_new,
     #              "sum_S": sum_S,
     #              "sum_S2": sum_S2}
-    #     return carry, 
-
+    #     return carry,
