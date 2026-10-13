@@ -6,15 +6,15 @@ from functools import partial
 import numpy as np
 from dataclasses import dataclass, field, replace
 from typing import Dict, Optional
-from layout_utils import infer_layout
-from prng import make_keys
-import hmc
-import metropolis_mc as mmc
-import prng
-import params
-import energetics as eng
+from .layout_utils import infer_layout
+from .prng import make_keys
+from . import hmc
+from . import metropolis_mc as mmc
+from . import prng
+from . import params
+from . import energetics as eng
 import numbers
-import observables
+from . import observables
 jax.config.update("jax_enable_x64", True)  # 64 bit
 
 
@@ -145,8 +145,8 @@ class Phi4Lattice:
             raise ValueError("n_keys must be positive integer.")
 
         phi_master_key, phi_keys = make_keys(
-                                        self.n_keys, self.phi_seed,
-                                        randomize_keys=(self.phi_seed is None))
+            self.n_keys, self.phi_seed,
+            randomize_keys=(self.phi_seed is None))
         phi_x = self._rand_field_core(phi_keys,
                                       self.geom.lat_shape,
                                       mu=self.phi_mu,
@@ -158,8 +158,8 @@ class Phi4Lattice:
 
         # initialize momentum field
         mom_master_key, mom_keys = make_keys(
-                                        self.n_keys, self.mom_seed,
-                                        randomize_keys=(self.mom_seed is None))
+            self.n_keys, self.mom_seed,
+            randomize_keys=(self.mom_seed is None))
         mom_x = self._rand_field_core(mom_keys,
                                       self.geom.lat_shape,
                                       mu=self.mom_mu,
@@ -433,10 +433,10 @@ class Phi4Lattice:
                                     "is not callable.")
 
         traj_master_key, traj_keys = prng._make_traj_keys(
-                                                cfg.N_trajectories,
-                                                seed_or_key=seed,
-                                                randomize_keys=randomize_keys
-                                                )
+            cfg.N_trajectories,
+            seed_or_key=seed,
+            randomize_keys=randomize_keys
+        )
         object.__setattr__(self, 'hmc_master_key', traj_master_key)
 
         energy_fns = eng.make_phi4_energy_fns
@@ -472,17 +472,18 @@ class Phi4Lattice:
         """
         measure_fns_dict = {"magnetization": lambda phi:
                             observables.magnetization(
-                                        phi,
-                                        spatial_axes=self.spatial_axes,
-                                        volume=self.geom.V),
+                                phi,
+                                spatial_axes=self.spatial_axes,
+                                volume=self.geom.V),
                             "action": lambda phi: eng.phi4_action_core(
-                                                                phi,
-                                                                self.model,
-                                                                self.geom,
-                                                                self.shift,
-                                                                self.spatial_axes)[0]}
+                                phi,
+                                self.model,
+                                self.geom,
+                                self.shift,
+                                self.spatial_axes)[0]}
         if self.n_keys != 1:
-            raise NotImplementedError("thermalize currently only implemented for n_keys=1 for simplicity of diagnostics.")
+            raise NotImplementedError(
+                "thermalize currently only implemented for n_keys=1 for simplicity of diagnostics.")
         if cfg.N_trajectories < 3:
             raise ValueError("cfg.N_trajectories must be at least 3 for "
                              "thermalization to compute std.")
@@ -505,13 +506,15 @@ class Phi4Lattice:
         abs_mag_hist = jnp.abs(mag_hist)
         abs_mag_mean = abs_mag_hist.mean()
         abs_mag_std = abs_mag_hist.std()
-        mag_error = jnp.full_like(mag_hist, jnp.inf)  # inf error for first loop
+        mag_error = jnp.full_like(
+            mag_hist, jnp.inf)  # inf error for first loop
 
         # action history of fields during trajectory
         action_hist = summary["action"]
         action_mean = action_hist.mean()
         action_std = action_hist.std()
-        action_error = jnp.full_like(action_hist, jnp.inf)  # inf error for first loop
+        action_error = jnp.full_like(
+            action_hist, jnp.inf)  # inf error for first loop
 
         # set as old values for error calculation
         old_mag_mean = abs_mag_mean
@@ -524,11 +527,11 @@ class Phi4Lattice:
         current_seed = seed
 
         loop_history_dict = {"abs_mag_mean": [abs_mag_mean],
-                            "abs_mag_std": [abs_mag_std],
-                            "mag_error": [mag_error],
-                            "action_mean": [action_mean],
-                            "action_std": [action_std],
-                            "action_error": [action_error]}
+                             "abs_mag_std": [abs_mag_std],
+                             "mag_error": [mag_error],
+                             "action_mean": [action_mean],
+                             "action_std": [action_std],
+                             "action_error": [action_error]}
         while n_loops < max_loops:
             current_seed = current_seed + 1
 
@@ -546,9 +549,12 @@ class Phi4Lattice:
 
             # calculate relative errors compared to previous loop
             # normalize by std so that we can use same threshold
-            # considering scaling by min(old,new std), more strict but less stable
-            mag_error = jnp.abs(abs_mag_mean - old_mag_mean) / jnp.maximum(abs_mag_std, 1e-8)
-            action_error = jnp.abs(action_mean - old_action_mean) / jnp.maximum(action_std, 1e-8)
+            # considering scaling by min(old,new std), more strict but less
+            # stable
+            mag_error = jnp.abs(abs_mag_mean - old_mag_mean) / \
+                jnp.maximum(abs_mag_std, 1e-8)
+            action_error = jnp.abs(
+                action_mean - old_action_mean) / jnp.maximum(action_std, 1e-8)
 
             # update old values for next loop's error calculation
             old_mag_mean = abs_mag_mean
@@ -562,13 +568,12 @@ class Phi4Lattice:
             loop_history_dict["action_mean"].append(action_mean)
             loop_history_dict["action_std"].append(action_std)
             loop_history_dict["action_error"].append(action_error)
-            
-
 
             # check if both errors are below the threshold
-            if bool(jnp.all((mag_error <= threshold) & (action_error <= threshold))):
+            if bool(jnp.all((mag_error <= threshold)
+                    & (action_error <= threshold))):
                 n_consecutive += 1
-            else:                
+            else:
                 n_consecutive = 0  # reset if either error exceeds threshold
 
             if n_consecutive >= minimum_consecutive:
@@ -583,8 +588,7 @@ class Phi4Lattice:
         object.__setattr__(self, 'thermalization_diagnostics', diagnostic_msg)
         return self
 
-        
-    
+
 # --------- Ising model -------
 
 
@@ -600,8 +604,8 @@ class IsingLattice:
     shift: int = field(init=False)
 
     trajectory_history: Dict[str, jnp.ndarray] = field(
-                                                init=False,
-                                                default_factory=dict)
+        init=False,
+        default_factory=dict)
 
     valid_dists: tuple = field(init=False, default=('all-up',
                                                     'all-down',
@@ -625,9 +629,9 @@ class IsingLattice:
         if not isinstance(self.n_keys, numbers.Integral) or self.n_keys <= 0:
             raise ValueError("n_keys must be positive integer.")
         mc_master_key, mc_keys = make_keys(
-                                    self.n_keys,
-                                    self.sigma_seed,
-                                    randomize_keys=(self.sigma_seed is None))
+            self.n_keys,
+            self.sigma_seed,
+            randomize_keys=(self.sigma_seed is None))
         sigma_x = self._generate_field_core(mc_keys,
                                             self.geom.lat_shape,
                                             distribution=self.sigma_dist)
@@ -703,16 +707,16 @@ class IsingLattice:
                                     "is not callable.")
 
         sweep_master_key, sweep_keys = prng._make_traj_keys(
-                                                cfg.N_steps,
-                                                seed_or_key=seed,
-                                                randomize_keys=randomize_keys)
+            cfg.N_steps,
+            seed_or_key=seed,
+            randomize_keys=randomize_keys)
         object.__setattr__(self, 'mc_master_key', sweep_master_key)
 
         energy_fns = eng.make_ising_energy_fns
         S_Fn, propose_flip_Fn, local_delta_S_Fn = energy_fns(self.model,
-                                           self.geom,
-                                           self.shift,
-                                           self.spatial_axes)
+                                                             self.geom,
+                                                             self.shift,
+                                                             self.spatial_axes)
 
         result = mmc.run_Metropolis_MC(sigma_x0=self.sigma_x,
                                        sweep_keys=sweep_keys,
@@ -727,18 +731,17 @@ class IsingLattice:
         object.__setattr__(self, 'sigma_x', sigma_final)
         object.__setattr__(self, 'trajectory_history', traj_outs_dict)
         return self
-    
 
     def thermalize(self,
-                cfg: params.MetropMCConfig,
-                seed: int = None,
-                randomize_keys: bool = False,
-                threshold: float = 1,
-                max_loops: int = 10,
-                minimum_consecutive: int = 3,
-                store_proposal_history: bool = False,
-                store_loop_history: bool = True,
-                store_error_history: bool = False):
+                   cfg: params.MetropMCConfig,
+                   seed: int = None,
+                   randomize_keys: bool = False,
+                   threshold: float = 1,
+                   max_loops: int = 10,
+                   minimum_consecutive: int = 3,
+                   store_proposal_history: bool = False,
+                   store_loop_history: bool = True,
+                   store_error_history: bool = False):
         """
         Run repeated Metrop-MC evolutions until observables stabilize
         -- no monotonic drift in magnetization or action.
@@ -763,12 +766,12 @@ class IsingLattice:
         # --- first pass
         # initial run to populate trajectory history for error calculations
         self.run_Metropolis_MC(cfg=cfg,
-                     seed=seed,
-                     randomize_keys=randomize_keys,
-                    #  measure_fns_dict=measure_fns_dict,
-                     store_proposal_history=store_proposal_history,
-                     thermalization_summary=True)
-            # magnetization history of fields during trajectory
+                               seed=seed,
+                               randomize_keys=randomize_keys,
+                               #  measure_fns_dict=measure_fns_dict,
+                               store_proposal_history=store_proposal_history,
+                               thermalization_summary=True)
+        # magnetization history of fields during trajectory
         summary = self.trajectory_history
         # mag_hist = self.trajectory_history["magnetization"]
         # abs_mag_hist = jnp.abs(mag_hist)
@@ -776,14 +779,16 @@ class IsingLattice:
         # abs_mag_mean = abs_mag_hist.mean()
         # abs_mag_std = abs_mag_hist.std()
 
-        abs_mag_mean = summary["abs_mag_mean"]/self.geom.V
-        abs_mag_std = summary["abs_mag_std"]/self.geom.V
-        mag_error = jnp.full_like(abs_mag_mean, jnp.inf)  # set initial error to inf for first loop
+        abs_mag_mean = summary["abs_mag_mean"] / self.geom.V
+        abs_mag_std = summary["abs_mag_std"] / self.geom.V
+        # set initial error to inf for first loop
+        mag_error = jnp.full_like(abs_mag_mean, jnp.inf)
         # action history of fields during trajectory
         # action_hist = self.trajectory_history["action"]
         action_mean = summary["action_mean"]
         action_std = summary["action_std"]
-        action_error = jnp.full_like(action_mean, jnp.inf)  # set initial error to inf for first loop
+        # set initial error to inf for first loop
+        action_error = jnp.full_like(action_mean, jnp.inf)
 
         # set as old values for error calculation
         old_mag_mean = abs_mag_mean
@@ -793,9 +798,9 @@ class IsingLattice:
         # old_action_std = action_std
         if store_loop_history:
             loop_history_dict = {"abs_mag_mean": [abs_mag_mean],
-                                "abs_mag_std": [abs_mag_std],
-                                "action_mean": [action_mean],
-                                "action_std": [action_std]}
+                                 "abs_mag_std": [abs_mag_std],
+                                 "action_mean": [action_mean],
+                                 "action_std": [action_std]}
             if store_error_history:
                 loop_history_dict["mag_error"] = [mag_error]
                 loop_history_dict["action_error"] = [action_error]
@@ -804,18 +809,19 @@ class IsingLattice:
 
         n_loops = 1
         n_consecutive = 0
-        # require at least 3 consecutive loops below threshold for thermalization
+        # require at least 3 consecutive loops below threshold for
+        # thermalization
         current_seed = seed
         # swap to jax.lax.while_loop
         while n_loops < max_loops:
             current_seed = current_seed + 1
 
             self.run_Metropolis_MC(cfg=cfg,
-                         seed=current_seed,
-                         randomize_keys=randomize_keys,
-                        #  measure_fns_dict=measure_fns_dict,
-                         store_proposal_history=store_proposal_history,
-                         thermalization_summary=True)
+                                   seed=current_seed,
+                                   randomize_keys=randomize_keys,
+                                   #  measure_fns_dict=measure_fns_dict,
+                                   store_proposal_history=store_proposal_history,
+                                   thermalization_summary=True)
             # mag_hist = self.trajectory_history["magnetization"]
             # abs_mag_hist = jnp.abs(mag_hist)
             # abs_mag_mean = abs_mag_hist.mean()
@@ -825,16 +831,19 @@ class IsingLattice:
             # action_std = action_hist.std()
 
             summary = self.trajectory_history
-            abs_mag_mean = summary["abs_mag_mean"]/self.geom.V
-            abs_mag_std = summary["abs_mag_std"]/self.geom.V
+            abs_mag_mean = summary["abs_mag_mean"] / self.geom.V
+            abs_mag_std = summary["abs_mag_std"] / self.geom.V
             action_mean = summary["action_mean"]
             action_std = summary["action_std"]
 
             # calculate relative errors compared to previous loop
             # normalize by std so that we can use same threshold
-            # considering scaling by min(old,new std), more strict but less stable
-            mag_error = jnp.abs(abs_mag_mean - old_mag_mean) / jnp.maximum(abs_mag_std, 1e-8)
-            action_error = jnp.abs(action_mean - old_action_mean) / jnp.maximum(action_std, 1e-8)
+            # considering scaling by min(old,new std), more strict but less
+            # stable
+            mag_error = jnp.abs(abs_mag_mean - old_mag_mean) / \
+                jnp.maximum(abs_mag_std, 1e-8)
+            action_error = jnp.abs(
+                action_mean - old_action_mean) / jnp.maximum(action_std, 1e-8)
 
             # update old values for next loop's error calculation
             old_mag_mean = abs_mag_mean
@@ -852,26 +861,28 @@ class IsingLattice:
                     loop_history_dict["mag_error"].append(mag_error)
                     loop_history_dict["action_error"].append(action_error)
 
-
             # check if both errors are below the threshold
-            if bool(jnp.all((mag_error<= threshold) & (action_error <= threshold))):
+            if bool(jnp.all((mag_error <= threshold)
+                    & (action_error <= threshold))):
                 n_consecutive += 1
-            else:                
+            else:
                 n_consecutive = 0  # reset if either error exceeds threshold
 
             if n_consecutive >= minimum_consecutive:
                 # early exit if thermalization criteria met
                 break
-        
+
         # convert loop history lists to arrays for easier analysis downstream
         if store_loop_history:
             loop_history_dict = {key: jnp.stack(value)
-                                for key, value in loop_history_dict.items()}
+                                 for key, value in loop_history_dict.items()}
         thermalization_diagnostics = {"thermalized": (n_consecutive >= minimum_consecutive),
                                       "n_loops": n_loops,
                                       "final_mag_error": mag_error,
                                       "final_action_error": action_error,
                                       "history": loop_history_dict}
-        object.__setattr__(self, 'thermalization_diagnostics', thermalization_diagnostics)
+        object.__setattr__(
+            self,
+            'thermalization_diagnostics',
+            thermalization_diagnostics)
         return self
-

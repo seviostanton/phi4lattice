@@ -1,9 +1,7 @@
 import jax
 import jax.numpy as jnp
-from params import IsingParams, MetropMCConfig, LatticeGeometry
-from lattice import IsingLattice
-import sys
-sys.path.append('src')
+from phi4lattice.params import IsingParams, MetropMCConfig, LatticeGeometry
+from phi4lattice.lattice import IsingLattice
 
 model = IsingParams(kappa=0.4, h=0.0)
 L_array = jnp.array([4, 4], dtype=int)

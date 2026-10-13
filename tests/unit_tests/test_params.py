@@ -1,12 +1,10 @@
 import unittest
-import sys
-sys.path.append('src')  # noqa
-import hmc as hmc
-import params as params
+from phi4lattice import hmc as hmc
+from phi4lattice import params as params
 import jax.numpy as jnp
 import jax.random as random
-from test_helpers import random_int_uniform
-from test_helpers import random_float_uniform
+from phi4lattice.test_helpers import random_int_uniform
+from phi4lattice.test_helpers import random_float_uniform
 
 
 class TestHMCConfig(unittest.TestCase):
@@ -141,7 +139,7 @@ class TestLatticeGeometry(unittest.TestCase):
         geom = params.LatticeGeometry(spacing_arr=spacing, length_arr=length)
         self.assertEqual(geom.D, D)
         self.assertEqual(geom.V, 4**D)
-        self.assertEqual(geom.lat_shape, tuple([4]*D))
+        self.assertEqual(geom.lat_shape, tuple([4] * D))
 
     def test_single_dimension(self):
         spacing = jnp.array([1])

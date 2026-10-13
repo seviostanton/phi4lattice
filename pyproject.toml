@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "phi4lattice"
+version = "0.1.0"
+description = "JAX-based lattice field theory simulation toolkit"
+requires-python = ">=3.10"
+dependencies = [
+    "jax>=0.4.35",
+    "numpy>=2.0",
+]
+
+[tool.setuptools]
+packages = ["phi4lattice"]
+
+[tool.setuptools.package-dir]
+phi4lattice = "src"

@@ -1,9 +1,7 @@
-import sys
-sys.path.append('src')
 import jax
 import jax.numpy as jnp
-from params import IsingParams, MetropMCConfig, LatticeGeometry
-from lattice import IsingLattice
+from phi4lattice.params import IsingParams, MetropMCConfig, LatticeGeometry
+from phi4lattice.lattice import IsingLattice
 import numpy as np
 import csv
 from pathlib import Path
@@ -13,7 +11,7 @@ import time
 model = IsingParams(kappa=0.44, h=0.0)
 N_sweeps = 10**5
 threshold = 1
-minimum_consecutive =3
+minimum_consecutive = 3
 num_seeds = 1
 loops_to_thermalize_dict = {}
 # lattice_sizes = [8, 16, 32, 64]
@@ -25,7 +23,7 @@ outpath = "results/ising_burn_in_estimate.csv"
 
 
 def append_row_csv(row: dict,
-                      out_path: str):
+                   out_path: str):
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     file_exists = out_path.exists()
@@ -35,6 +33,7 @@ def append_row_csv(row: dict,
         if not file_exists:
             writer.writeheader()
         writer.writerow(row)
+
 
 # start = time.perf_counter()
 for dist in sigma_dist:
@@ -49,14 +48,14 @@ for dist in sigma_dist:
             # reinitialize lattice for each seed to ensure
             # independent thermalization tests
             lat = IsingLattice(model=model,
-                        geom=geom,
-                        n_keys=1,
-                        sigma_dist=dist)
-            
+                               geom=geom,
+                               n_keys=1,
+                               sigma_dist=dist)
+
             seed = np.random.randint(0, 10**5)
 
             cfg = MetropMCConfig(N_steps=N_proposed_flips,
-                                seed=seed)
+                                 seed=seed)
             lat.thermalize(cfg=cfg,
                            max_loops=N_sweeps,
                            threshold=threshold,
@@ -82,6 +81,6 @@ for dist in sigma_dist:
                    int(lat.thermalization_diagnostics["n_loops"]),
                    "seed": int(seed),
                    "N_proposed_flips": int(N_proposed_flips)}
-                # "elapsed_time_sec": elapsed_time_sec}
+            # "elapsed_time_sec": elapsed_time_sec}
             append_row_csv(row, outpath)
 # print("total elapsed time (sec):", time.perf_counter() - start)

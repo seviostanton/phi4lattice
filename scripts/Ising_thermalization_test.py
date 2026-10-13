@@ -5,15 +5,11 @@ PYTHONPATH=src python scripts/Ising_thermalization_test.py
 Note: Ising model isnot yet optimized with jax based code
 """
 # !/usr/bin/env python
-import sys
-sys.path.append('src')
 import jax
 import jax.numpy as jnp
-from params import IsingParams, MetropMCConfig, LatticeGeometry
-from lattice import IsingLattice
+from phi4lattice.params import IsingParams, MetropMCConfig, LatticeGeometry
+from phi4lattice.lattice import IsingLattice
 import numpy as np
-
-
 
 
 model = IsingParams(kappa=0.4, h=0.0)
@@ -27,7 +23,8 @@ geom = LatticeGeometry(spacing_arr=a_array, length_arr=L_array)
 N_proposed_flips = geom.V
 N_sweeps = 10**2
 threshold = 1
-seed = np.random.randint(0, 10000)  # random seed for thermalization test reproducibility
+# random seed for thermalization test reproducibility
+seed = np.random.randint(0, 10000)
 cfg = MetropMCConfig(N_steps=N_proposed_flips,
                      seed=seed)
 
@@ -95,20 +92,21 @@ for dist in sigma_dist:
             # reinitialize lattice for each seed to ensure
             # independent thermalization tests
             lat = IsingLattice(model=model,
-                        geom=geom,
-                        n_keys=1,
-                        sigma_dist=dist)
-            
+                               geom=geom,
+                               n_keys=1,
+                               sigma_dist=dist)
+
             seed = np.random.randint(0, 10000)
 
             cfg = MetropMCConfig(N_steps=N_proposed_flips,
-                                seed=seed)
+                                 seed=seed)
             lat.thermalize(cfg=cfg,
-                        max_loops=N_sweeps,
-                        threshold=threshold,
-                        store_loop_history=False,
-                        store_error_history=False)
-            loops_to_thermalize.append(lat.thermalization_diagnostics['n_loops'])
+                           max_loops=N_sweeps,
+                           threshold=threshold,
+                           store_loop_history=False,
+                           store_error_history=False)
+            loops_to_thermalize.append(
+                lat.thermalization_diagnostics['n_loops'])
         loops_to_thermalize_dict[(dist, L)] = loops_to_thermalize
 print("Loops to thermalize for each (sigma_dist, L):")
 for key, value in loops_to_thermalize_dict.items():

@@ -1,15 +1,13 @@
 import random as random_basic
 import unittest
-import sys
-sys.path.append('src')  # noqa
 import numpy as np
 import os
 import jax
 import jax.numpy as jnp
-from integrators import omelyan_integrator
-from integrators import leapfrog_integrator
-from test_helpers import random_int_uniform
-from test_helpers import random_float_uniform
+from phi4lattice.integrators import omelyan_integrator
+from phi4lattice.integrators import leapfrog_integrator
+from phi4lattice.test_helpers import random_int_uniform
+from phi4lattice.test_helpers import random_float_uniform
 jax.config.update("jax_enable_x64", True)
 
 
@@ -88,7 +86,7 @@ class TestOmelyanIntegrator(unittest.TestCase):
         H_initial = H_hist[0]
         max_dev = float(jnp.max(jnp.abs(H_hist - H_initial)))
         rel_dev = max_dev / float(jnp.abs(H_initial))
-        self.assertLessEqual(rel_dev, 10*eps**2)
+        self.assertLessEqual(rel_dev, 10 * eps**2)
 
 
 class TestLeapfrogIntegrator(unittest.TestCase):
@@ -141,7 +139,7 @@ class TestLeapfrogIntegrator(unittest.TestCase):
         H_initial = H_hist[0]
         max_dev = float(jnp.max(jnp.abs(H_hist - H_initial)))
         rel_dev = max_dev / float(jnp.abs(H_initial))
-        self.assertLessEqual(rel_dev, 10*eps**2)
+        self.assertLessEqual(rel_dev, 10 * eps**2)
 
 
 if __name__ == '__main__':

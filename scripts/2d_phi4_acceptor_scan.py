@@ -1,19 +1,17 @@
-import sys
 import jax
 import csv
 import jax.numpy as jnp
-from params import LatticeGeometry, Phi4Params, HMCConfig
-from lattice import Phi4Lattice
+from phi4lattice.params import LatticeGeometry, Phi4Params, HMCConfig
+from phi4lattice.lattice import Phi4Lattice
 import numpy as np
 from pathlib import Path
-sys.path.append('src')
 
 # kappa_values = [1.1, 0.85, 0.69, 0.58, 0.5,
 #                 0.47, 0.45, 0.44, 0.43, 0.41,
 #                 0.4, 0.36, 0.32, 0.30, 0.28, 0.26]
 # kappa_values = [0.85, 0.5, 0.44, 0.36, 0.28]
 # kappa_values = [0.85, 0.44, 0.28]
-kappa_values = [0.44]/2
+kappa_values = [0.44] / 2
 # lattice_sizes = [8, 16, 32, 64]
 lattice_sizes = [8, 16, 32, 64]
 # dist_type = ['uniform', 'all-up']
@@ -58,7 +56,7 @@ def make_lattice(kappa, lam, L, dist):
 
 def make_cfg(seed, N_trajectories, eps):
     cfg = HMCConfig(
-        N_steps=round(1/eps),  # rounds to nearest integer
+        N_steps=round(1 / eps),  # rounds to nearest integer
         eps=eps,
         xi=0.1931833,
         integrator="omelyan",   # or "leapfrog"

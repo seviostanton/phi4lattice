@@ -1,12 +1,10 @@
 import unittest
-import sys
-sys.path.append('src')  # noqa
-from test_helpers import random_int_uniform
-from test_helpers import random_float_uniform
-from layout_utils import infer_layout
+from phi4lattice.test_helpers import random_int_uniform
+from phi4lattice.test_helpers import random_float_uniform
+from phi4lattice.layout_utils import infer_layout
 import jax.numpy as jnp
-from prng import make_keys
-from prng import randomize_uniform_core
+from phi4lattice.prng import make_keys
+from phi4lattice.prng import randomize_uniform_core
 
 
 class TestInferLayout(unittest.TestCase):
@@ -22,7 +20,7 @@ class TestInferLayout(unittest.TestCase):
 
         spatial_axes, shift = infer_layout(phi_x, D=D)
 
-        expected_spatial_axes = tuple(range(1, D+1))
+        expected_spatial_axes = tuple(range(1, D + 1))
         self.assertEqual(spatial_axes, expected_spatial_axes)
         self.assertEqual(shift, 1)
 

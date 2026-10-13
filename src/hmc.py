@@ -24,8 +24,8 @@ import numpy as np
 import jax.numpy as jnp
 import jax.random as random
 from jax import lax
-import integrators as integ
-from params import HMCConfig
+from . import integrators as integ
+from .params import HMCConfig
 from typing import Callable
 from functools import partial
 jax.config.update("jax_enable_x64", True)
@@ -374,9 +374,9 @@ def run_HMC_trajectories_core(phi0: jnp.ndarray,
         return (mom_fx, phi_fx), out
 
     (mom_final, phi_final), traj_outs_dict = lax.scan(
-                                                    one_traj,
-                                                    (mom0, phi0),
-                                                    xs=traj_keys,
-                                                    length=cfg.N_trajectories
-                                                    )
+        one_traj,
+        (mom0, phi0),
+        xs=traj_keys,
+        length=cfg.N_trajectories
+    )
     return (mom_final, phi_final), traj_outs_dict

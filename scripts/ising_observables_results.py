@@ -1,14 +1,12 @@
-import sys
-sys.path.append('src')
 import jax
 import jax.numpy as jnp
-from params import IsingParams, MetropMCConfig, LatticeGeometry
-from lattice import IsingLattice
+from phi4lattice.params import IsingParams, MetropMCConfig, LatticeGeometry
+from phi4lattice.lattice import IsingLattice
 import numpy as np
 import csv
 from pathlib import Path
-import observables as obs
-import energetics as en
+from phi4lattice import observables as obs
+from phi4lattice import energetics as en
 
 # kappa_values = [0.1, 0.2, 0.3, 0.4,
 #                 0.44,
@@ -23,7 +21,7 @@ import energetics as en
 kappa_values = [0.36]
 # N_sweeps = [246,458,917,1353]*10
 # lattice_sizes = [8, 16, 32, 64]
-N_sweeps = 1353*10
+N_sweeps = 1353 * 10
 lattice_size = 64
 # threshold = 1
 # minimum_consecutive = 5
@@ -32,8 +30,9 @@ lattice_size = 64
 sigma_dist = 'uniform'
 outpath = "results/ising_observables_results.csv"
 
+
 def append_row_csv(row: dict,
-                      out_path: str):
+                   out_path: str):
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     file_exists = out_path.exists()
@@ -44,6 +43,7 @@ def append_row_csv(row: dict,
             writer.writeheader()
         writer.writerow(row)
 
+
 for kappa in kappa_values:
     print(f"Testing thermalization for kappa = {kappa}")
     model = IsingParams(kappa=kappa, h=0.0)
@@ -52,18 +52,17 @@ for kappa in kappa_values:
     geom = LatticeGeometry(spacing_arr=a_array, length_arr=L_array)
     N_proposed_flips = geom.V
 
-
     # reinitialize lattice for each seed to ensure
     # independent thermalization tests
     lat = IsingLattice(model=model,
-                geom=geom,
-                n_keys=1,
-                sigma_dist=sigma_dist)
-    
+                       geom=geom,
+                       n_keys=1,
+                       sigma_dist=sigma_dist)
+
     burn_seed = np.random.randint(0, 10**5)
 
-    cfg = MetropMCConfig(N_steps=N_sweeps*geom.V,
-                        seed=burn_seed)
+    cfg = MetropMCConfig(N_steps=N_sweeps * geom.V,
+                         seed=burn_seed)
     # lat.thermalize(cfg=cfg,
     #             max_loops=N_sweeps,
     #             threshold=threshold,
@@ -72,30 +71,29 @@ for kappa in kappa_values:
     #             minimum_consecutive=minimum_consecutive)
 
     lat.run_Metropolis_MC(cfg=cfg,
-                        store_proposal_history = False,
-                        thermalization_summary = False)
+                          store_proposal_history=False,
+                          thermalization_summary=False)
 
-    
     # collect post-thermalization observables
     meas_seed = np.random.randint(0, 10**5)
-    cfg = MetropMCConfig(N_steps=N_proposed_flips*10**4,
-                        seed=meas_seed)
-    
+    cfg = MetropMCConfig(N_steps=N_proposed_flips * 10**4,
+                         seed=meas_seed)
+
     measure_fns_dict = {"magnetization": lambda sigma_x: obs.magnetization(sigma_x,
                                                                            lat.spatial_axes,
                                                                            lat.geom.V),
                         "action": lambda sigma_x: en.ising_action_core(sigma_x,
-                                                                                lat.model,
-                                                                                lat.geom,
-                                                                                lat.shift,
-                                                                                lat.spatial_axes
-                                                                                )[0]}
+                                                                       lat.model,
+                                                                       lat.geom,
+                                                                       lat.shift,
+                                                                       lat.spatial_axes
+                                                                       )[0]}
     lat.run_Metropolis_MC(cfg=cfg,
-                        measure_fns_dict=measure_fns_dict,
-                        store_proposal_history=False,
-                        thermalization_summary=False
-                            )
-    # Ensure all computations are 
+                          measure_fns_dict=measure_fns_dict,
+                          store_proposal_history=False,
+                          thermalization_summary=False
+                          )
+    # Ensure all computations are
     # complete before accessing trajectory history
     lat.sigma_x.block_until_ready()
 
@@ -106,16 +104,16 @@ for kappa in kappa_values:
     m_mean = m.mean()
     m2_mean = (m**2).mean()
     m4_mean = (m**4).mean()
-    chi=geom.V*(m2_mean - m_mean**2)
-    binder_cumulant = 1 - m4_mean/(3*m2_mean**2)
+    chi = geom.V * (m2_mean - m_mean**2)
+    binder_cumulant = 1 - m4_mean / (3 * m2_mean**2)
     S_mean = S.mean()
     S2_mean = (S**2).mean()
-    C_per_Nk = (S2_mean - S_mean**2)/geom.V
+    C_per_Nk = (S2_mean - S_mean**2) / geom.V
 
     row = {"kappa": kappa,
            "L": lattice_size,
-        #    'thermalized': lat.thermalization_diagnostics['thermalized'],
-        #    "N_therm_sweeps": lat.thermalization_diagnostics['n_loops'],
+           #    'thermalized': lat.thermalization_diagnostics['thermalized'],
+           #    "N_therm_sweeps": lat.thermalization_diagnostics['n_loops'],
            "N_meas_sweeps": 10**4,
            "burn_seed": burn_seed,
            "meas_seed": meas_seed,
