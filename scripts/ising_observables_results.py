@@ -1,14 +1,12 @@
-import sys
-sys.path.append('src')
 import jax
 import jax.numpy as jnp
-from params import IsingParams, MetropMCConfig, LatticeGeometry
-from lattice import IsingLattice
+from phi4lattice.params import IsingParams, MetropMCConfig, LatticeGeometry
+from phi4lattice.lattice import IsingLattice
 import numpy as np
 import csv
 from pathlib import Path
-import observables as obs
-import energetics as en
+from phi4lattice import observables as obs
+from phi4lattice import energetics as en
 
 # kappa_values = [0.1, 0.2, 0.3, 0.4,
 #                 0.44,

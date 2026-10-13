@@ -1,15 +1,13 @@
 import random as random_basic
 import unittest
-import sys
-sys.path.append('src')  # noqa
 import numpy as np
 import os
 import jax
 import jax.numpy as jnp
-from integrators import omelyan_integrator
-from integrators import leapfrog_integrator
-from test_helpers import random_int_uniform
-from test_helpers import random_float_uniform
+from phi4lattice.integrators import omelyan_integrator
+from phi4lattice.integrators import leapfrog_integrator
+from phi4lattice.test_helpers import random_int_uniform
+from phi4lattice.test_helpers import random_float_uniform
 jax.config.update("jax_enable_x64", True)
 
 

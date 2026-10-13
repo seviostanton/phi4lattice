@@ -1,12 +1,10 @@
 import unittest
-import sys
-sys.path.append('src')  # noqa
-import hmc as hmc
-import params as params
+from phi4lattice import hmc as hmc
+from phi4lattice import params as params
 import jax.numpy as jnp
 import jax.random as random
-from test_helpers import random_int_uniform
-from test_helpers import random_float_uniform
+from phi4lattice.test_helpers import random_int_uniform
+from phi4lattice.test_helpers import random_float_uniform
 
 
 class TestHMC(unittest.TestCase):

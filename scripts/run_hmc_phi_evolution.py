@@ -12,16 +12,14 @@ via the HMCConfig dataclass. The script is designed for experimentation
 with step sizes, trajectory lengths, and integrator choices.
 """
 # !/usr/bin/env python
-import sys
-sys.path.append('src')  # noqa
 import argparse
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import matplotlib.animation as ani
-from params import LatticeGeometry, Phi4Params, HMCConfig
-from lattice import Phi4Lattice
-from observables import magnetization, binder_cumulant
+from phi4lattice.params import LatticeGeometry, Phi4Params, HMCConfig
+from phi4lattice.lattice import Phi4Lattice
+from phi4lattice.observables import magnetization, binder_cumulant
 
 
 def main():

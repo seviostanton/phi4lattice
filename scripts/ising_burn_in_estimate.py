@@ -1,9 +1,7 @@
-import sys
-sys.path.append('src')
 import jax
 import jax.numpy as jnp
-from params import IsingParams, MetropMCConfig, LatticeGeometry
-from lattice import IsingLattice
+from phi4lattice.params import IsingParams, MetropMCConfig, LatticeGeometry
+from phi4lattice.lattice import IsingLattice
 import numpy as np
 import csv
 from pathlib import Path

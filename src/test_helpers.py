@@ -2,7 +2,7 @@ import numpy as np
 import jax.numpy as jnp
 import jax.random as random
 import jax
-import prng
+from . import prng
 
 
 def random_int_uniform(n=25, lower=-1000, upper=1000, seed=None):

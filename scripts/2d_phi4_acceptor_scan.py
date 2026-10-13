@@ -1,12 +1,10 @@
-import sys
 import jax
 import csv
 import jax.numpy as jnp
-from params import LatticeGeometry, Phi4Params, HMCConfig
-from lattice import Phi4Lattice
+from phi4lattice.params import LatticeGeometry, Phi4Params, HMCConfig
+from phi4lattice.lattice import Phi4Lattice
 import numpy as np
 from pathlib import Path
-sys.path.append('src')
 
 # kappa_values = [1.1, 0.85, 0.69, 0.58, 0.5,
 #                 0.47, 0.45, 0.44, 0.43, 0.41,

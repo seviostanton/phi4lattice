@@ -5,13 +5,11 @@ PYTHONPATH=src python scripts/Ising_thermalization_test.py
 Note: Ising model isnot yet optimized with jax based code
 """
 # !/usr/bin/env python
-import sys
 import jax
 import jax.numpy as jnp
-from params import IsingParams, MetropMCConfig, LatticeGeometry
-from lattice import IsingLattice
+from phi4lattice.params import IsingParams, MetropMCConfig, LatticeGeometry
+from phi4lattice.lattice import IsingLattice
 import numpy as np
-sys.path.append('src')
 
 
 model = IsingParams(kappa=0.4, h=0.0)

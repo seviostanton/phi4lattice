@@ -1,6 +1,5 @@
 import csv
 import matplotlib.pyplot as plt
-import sys
 from collections import defaultdict
 
 

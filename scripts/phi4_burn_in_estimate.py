@@ -1,9 +1,7 @@
-import sys
-sys.path.append('src')
 import jax
 import jax.numpy as jnp
-from params import HMCConfig, LatticeGeometry, Phi4Params
-from lattice import Phi4Lattice
+from phi4lattice.params import HMCConfig, LatticeGeometry, Phi4Params
+from phi4lattice.lattice import Phi4Lattice
 import numpy as np
 from collections import defaultdict
 import csv

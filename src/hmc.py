@@ -24,8 +24,8 @@ import numpy as np
 import jax.numpy as jnp
 import jax.random as random
 from jax import lax
-import integrators as integ
-from params import HMCConfig
+from . import integrators as integ
+from .params import HMCConfig
 from typing import Callable
 from functools import partial
 jax.config.update("jax_enable_x64", True)

@@ -6,15 +6,15 @@ from functools import partial
 import numpy as np
 from dataclasses import dataclass, field, replace
 from typing import Dict, Optional
-from layout_utils import infer_layout
-from prng import make_keys
-import hmc
-import metropolis_mc as mmc
-import prng
-import params
-import energetics as eng
+from .layout_utils import infer_layout
+from .prng import make_keys
+from . import hmc
+from . import metropolis_mc as mmc
+from . import prng
+from . import params
+from . import energetics as eng
 import numbers
-import observables
+from . import observables
 jax.config.update("jax_enable_x64", True)  # 64 bit
 
 

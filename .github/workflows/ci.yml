@@ -28,6 +28,9 @@ jobs:
           init-shell: bash
           cache-environment: false
 
+      - name: Install phi4lattice package
+        run: python -m pip install --no-deps -e .
+        shell: bash -l {0}
       - name: Run unit tests
         run: |
           python tests/unit_tests/test_energetics.py
@@ -49,6 +52,9 @@ jobs:
         with:
           environment-file: env.yml
           init-shell: bash
+      - name: Install phi4lattice package
+        run: python -m pip install --no-deps -e .
+        shell: bash -l {0}
       - run: bash tests/func_tests/test_run_hmc.sh
         shell: bash -l {0}
 

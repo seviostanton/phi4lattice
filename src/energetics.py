@@ -7,7 +7,7 @@ which handle error checking, layout inference, etc.
 import jax
 import jax.numpy as jnp
 from functools import partial
-import params as params
+from . import params as params
 from typing import Callable
 jax.config.update("jax_enable_x64", True)
 

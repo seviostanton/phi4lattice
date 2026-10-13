@@ -1,15 +1,13 @@
 import unittest
-import sys
 import numpy as np
-sys.path.append('src')  # noqa
-import metropolis_mc
-import params as params
+from phi4lattice import metropolis_mc
+from phi4lattice import params as params
 import jax.numpy as jnp
 import jax.random as random
-from test_helpers import random_int_uniform
-from test_helpers import random_float_uniform
-from test_helpers import create_zero_action_ising_field
-from test_helpers import create_ising_field
+from phi4lattice.test_helpers import random_int_uniform
+from phi4lattice.test_helpers import random_float_uniform
+from phi4lattice.test_helpers import create_zero_action_ising_field
+from phi4lattice.test_helpers import create_ising_field
 
 
 class TestMetropolis_MC(unittest.TestCase):
