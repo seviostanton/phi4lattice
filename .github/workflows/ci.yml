@@ -33,13 +33,7 @@ jobs:
         shell: bash -l {0}
       - name: Run unit tests
         run: |
-          python tests/unit_tests/test_energetics.py
-          python tests/unit_tests/test_hmc.py
-          python tests/unit_tests/test_integrators.py
-          python tests/unit_tests/test_layout_utils.py
-          python tests/unit_tests/test_observables.py
-          python tests/unit_tests/test_params.py
-          python tests/unit_tests/test_prng.py
+          python -m pytest -q tests/unit_tests
         shell: bash -l {0}
 
 
