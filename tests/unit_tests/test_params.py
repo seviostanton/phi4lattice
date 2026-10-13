@@ -19,7 +19,7 @@ class TestHMCConfig(unittest.TestCase):
     def test_default_values(self):
         config = params.HMCConfig(N_steps=10, eps=0.1)
         self.assertEqual(config.integrator, "omelyan")
-        self.assertEqual(config.xi, 0.1)
+        self.assertEqual(config.xi, 0.1931833)
         self.assertEqual(config.seed, 2)
         self.assertEqual(config.N_trajectories, 1)
         self.assertTrue(config.metropolis)

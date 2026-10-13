@@ -521,7 +521,7 @@ class TestIsingAction(unittest.TestCase):
                                                    geom=geom,
                                                    shift=shift,
                                                    spatial_axes=spatial_axes)
-        S_Fn, propose_flip_Fn = make_ising_energy_fns(
+        S_Fn, _, _ = make_ising_energy_fns(
                                         model=model,
                                         geom=geom,
                                         shift=shift,
@@ -547,13 +547,13 @@ class TestIsingAction(unittest.TestCase):
         model = params.IsingParams(kappa=0.5, h=0.1)
         geom = params.LatticeGeometry(spacing_arr=jnp.ones(D, dtype=int),
                                       length_arr=L_array)
-        S_Fn, propose_flip_Fn = make_ising_energy_fns(
+        _, propose_flip_Fn, _ = make_ising_energy_fns(
                                     model=model,
                                     geom=geom,
                                     shift=shift,
                                     spatial_axes=spatial_axes)
         site_key = jax.random.PRNGKey(random_seed)
-        sigma_prop, site_coords = propose_flip_Fn(sigma_x, site_key)
+        sigma_prop, site_coords, _ = propose_flip_Fn(sigma_x, site_key)
         # check that exactly one spin is flipped in each field
         diff = sigma_prop - sigma_x
         num_flips = jnp.sum(diff != 0, axis=spatial_axes)

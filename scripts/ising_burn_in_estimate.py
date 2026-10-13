@@ -58,11 +58,11 @@ for dist in sigma_dist:
             cfg = MetropMCConfig(N_steps=N_proposed_flips,
                                 seed=seed)
             lat.thermalize(cfg=cfg,
-                        max_loops=N_sweeps,
-                        threshold=threshold,
-                        store_loop_history=False,
-                        store_error_history=False,
-                        minimum_consecutive=minimum_consecutive)
+                           max_loops=N_sweeps,
+                           threshold=threshold,
+                           store_loop_history=False,
+                           store_error_history=False,
+                           minimum_consecutive=minimum_consecutive)
             lat.sigma_x.block_until_ready()
             # elapsed_time_sec = time.perf_counter() - start
             # row = {"sigma_dist": dist,
@@ -71,15 +71,17 @@ for dist in sigma_dist:
             #     "loops_to_thermalize": lat.thermalization_diagnostics['n_loops'],
             #     "seed": seed}
             row = {"kappa": float(model.kappa),
-                    "threshold": float(threshold),
-                    "minimum_consecutive": int(minimum_consecutive),
-                    "max_loops": int(N_sweeps),
-                    "sigma_dist": dist,
-                    "L": int(L),
-                    "thermalized": bool(lat.thermalization_diagnostics["thermalized"]),
-                    "loops_to_thermalize": int(lat.thermalization_diagnostics["n_loops"]),
-                    "seed": int(seed),
-}
+                   "threshold": float(threshold),
+                   "minimum_consecutive": int(minimum_consecutive),
+                   "max_loops": int(N_sweeps),
+                   "sigma_dist": dist,
+                   "L": int(L),
+                   "thermalized":
+                   bool(lat.thermalization_diagnostics["thermalized"]),
+                   "loops_to_thermalize":
+                   int(lat.thermalization_diagnostics["n_loops"]),
+                   "seed": int(seed),
+                   "N_proposed_flips": int(N_proposed_flips)}
                 # "elapsed_time_sec": elapsed_time_sec}
             append_row_csv(row, outpath)
 # print("total elapsed time (sec):", time.perf_counter() - start)

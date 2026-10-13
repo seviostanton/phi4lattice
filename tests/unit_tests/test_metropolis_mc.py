@@ -35,8 +35,8 @@ class TestMetropolis_MC(unittest.TestCase):
         sigma_new = create_ising_field(L_array=l_array,
                                        batch_size=batch_size,
                                        seed=seed+1)
-        sigma_accepted, mask, delta_S = metropolis_mc.Metropolis(S_old,
-                                                                 S_new,
+        delta_S_expected = S_new - S_old
+        sigma_accepted, mask, delta_S = metropolis_mc.Metropolis_delta_S(delta_S_expected,
                                                                  sigma_old,
                                                                  sigma_new,
                                                                  r_key)
@@ -63,8 +63,8 @@ class TestMetropolis_MC(unittest.TestCase):
         sigma_new = create_ising_field(L_array=l_array,
                                        batch_size=batch_size,
                                        seed=seed+1)
-        sigma_accepted, mask, delta_S = metropolis_mc.Metropolis(S_old,
-                                                                 S_new,
+        delta_S_expected = S_new - S_old
+        sigma_accepted, mask, delta_S = metropolis_mc.Metropolis_delta_S(delta_S_expected,
                                                                  sigma_old,
                                                                  sigma_new,
                                                                  r_key)
