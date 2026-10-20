@@ -115,7 +115,11 @@ class Phi4Lattice:
     mom_sigma: float | None = None
     mom_seed: int | jnp.ndarray | None = 1
 
-    hmc_master_key: jnp.ndarray = field(init=False)
+    hmc_master_key: jnp.ndarray | None = field(
+        init=False,
+        default=None,
+        repr=False
+    )
 
     # ===============================================
     # ------ post init computations -------
