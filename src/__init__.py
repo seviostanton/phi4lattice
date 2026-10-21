@@ -24,3 +24,5 @@ from .blocking import (
     decimate_2d,
     make_smoothing_kernel,
     apply_smoothing_kernel)
+
+from .autocorrelation import ()

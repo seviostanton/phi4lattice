@@ -37,6 +37,14 @@ def binder_cumulant(phi_x, spatial_axes, volume=None):
     return 1.0 - m4_ave / (3 * m2_ave ** 2)
 
 
+def binder_cumulant_from_means(m2_m4_means):
+    """
+    Computes the Binder cumulant from the precomputed means of m^2 and m^4.
+    """
+    m2_ave, m4_ave = m2_m4_means
+    return 1.0 - m4_ave / (3 * m2_ave ** 2)
+
+
 def susceptibility(phi_x, spatial_axes, volume=None):
     m = magnetization(phi_x, spatial_axes, volume=volume)
     m_ave = m.mean()
