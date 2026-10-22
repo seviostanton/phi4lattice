@@ -1,5 +1,6 @@
 import jax
 import jax.numpy as jnp
+from typing import Callable
 
 
 def autocovariance(obs1: jnp.ndarray,
@@ -102,36 +103,121 @@ def autocovariance_tensor(observables_arr: jnp.ndarray,
     
     return jax.vmap(gamma_for_obs_a)(observables_arr)
 
-def obs_derivative(primary_observables, secondary_fn):
-        obs_means = primary_observables.mean(axis=(0, 1))
+def obs_derivative(#n_observables,
+                   primary_observables_dict: dict,
+                   secondary_fns: tuple[Callable, ...]):
+        # n_observables = observables.shape[0]
+        # n_primary_observables = primary_observables.shape[0]
+        
+        # p_obs_means = primary_observables_dict["primary_observables"].mean(axis=(0, 1))
 
-        # get derivatives
-        f = jax.grad(secondary_fn)(obs_means)
-        return f
+        # # initialize f (jacobian)
+        # f = jnp.zeros(shape = (n_observables, n_primary_observables))
+        #a = n_observables
+        #b = len(primary_observables_dict)
+        # # get derivatives
+        # if secondary_fn is None:
+        #     # primary fns have derivative 1: d(m**4)/d(m**4)
+        #     return 1  
+        # f = jnp.where(secondary_fn is None,
+        #               jnp.zeros((a, b)),
+                    #   jnp.array(
+                    #        [*(jax.grad(secondary_fn)(primary_observables_dict)
+                    #                ).values()
+                    #                ]
+                    #                ),
+        #               )
+             
+        primary_means_dict = jax.tree.map(lambda obs: obs.mean(),
+                                       primary_observables_dict)
+        
+        # identity for primary observables
+        a = len(primary_means_dict)
+        eye = jnp.eye(a)
+
+        if len(secondary_fns) == 0:
+            return eye
+
+        def grad_for_secondary_fn(A_dict):
+            # A is the dictionary of primary observable means
+             return jnp.stack(
+                  jax.tree.map(lambda fn: fn(A_dict),
+                               secondary_fns)
+                               )
+
+        # differentiation for secondary functions
+        j_dict = jax.jacrev(grad_for_secondary_fn)(primary_means_dict)
+
+        j_secondary = jnp.stack(jax.tree.leaves(j_dict),
+                                axis=-1)
+        return jnp.vstack((eye, j_secondary))
 
 
-def autocorrelation_time(gamma,
-                         primary_observables,
-                         secondary_fn,
-                         W):
+def autocorrelation_time(gamma: jnp.ndarray,
+                         primary_observables_dict: dict[str, jnp.ndarray],
+                         secondary_fns: tuple[Callable, ...],
+                         W_arr):
      """
      schaefer eq (3.4),(3.5)
      tau_int_F = 0.5 + 1.0/v_f * jnp.sum(gamma_f_t) = 0.5 + jnp.sum(rho_f_t)
      truncated at 0<W<T
+
      """
-     f = obs_derivative(primary_observables, secondary_fn)
+     M = gamma.shape[0]  # number of observables
+    #  a = len(primary_observables_dict)  # number of primary observables
+    #  b = len(secondary_fns)
+
+
+     f = obs_derivative(primary_observables_dict,
+                        secondary_fns)
+     # shape f is (M, a)
+
+
+    #  f = jax.vmap(lambda secondary_fn: 
+    #                jnp.where(secondary_fn is None,
+    #                          jnp.vstack([jnp.eye(a)],jnp.zeros((b,a))),
+    #                          obs_derivative(
+    #                   N_observables=M,
+    #                   primary_observables_dict=primary_observables_dict,
+    #                   secondary_fn=secondary_fn))
+    #              )(secondary_fns)
+
+    #  f = jax.vmap(lambda secondary_fn: 
+    #          jnp.where(secondary_fn is None,
+    #                      jnp.vstack([jnp.eye(a)],jnp.zeros((b,a))),
+    #                      obs_derivative(
+    #              N_observables=M,
+    #              primary_observables_dict=primary_observables_dict,
+    #              secondary_fn=secondary_fn))
+    #          )(secondary_fns)
+
      # shape of gamma is (M,M,T,C)
      # where M is the number of observables
      # T is the number of time lags
      # and C is the number of parallel chains.
 
-     #contract over a,b the observable indices
-     gamma_f_tc = jnp.einsum("a,b,abtc->tc", f,f,gamma)
-     # average over the parallel chains
-     gamma_f_t = gamma_f_tc.mean(axis=1)
+     # contract over a,b the observable indices
+     gamma_f_M_tc = jnp.einsum("ma,mb,abtc->mtc", f,f,gamma)
+     
+     # gamma_f_M_tc has shape (M, T, C)
+     # we average over the parallel chains (axis=-1) to get shape (M, T)
+     gamma_f_M_t = gamma_f_M_tc.mean(axis=-1)
 
-     v_f = gamma_f_t[0]
+     v_f_M = gamma_f_M_t[:,0]
 
-     tau_int = 0.5 + 1.0/v_f * jnp.sum(gamma_f_t[1:W+1])
-     return tau_int
+     rho_f_M_t = gamma_f_M_t / v_f_M[:,None]
+     # cumulative sum of the autocorrelation function excluding the zero lag
+     rho_cumulative = jnp.cumsum(rho_f_M_t[:,1:], axis=1)
+
+     # prepend 0.5 to the cumulative sum to account for the zero lag
+     tau_cumulative = jnp.concatenate((jnp.full((M,1), 0.5),
+                                       rho_cumulative),
+                                       axis=1)
+     if W_arr.shape != (M,):
+         raise ValueError("W_arr must have shape (M,), one window per observable")
+     tau_int = jnp.take_along_axis(tau_cumulative, W_arr[:,None], axis=1)
+    #  # axis 1 corresponds to the time lags
+    #  tau_int = lambda W: 0.5 + jnp.sum(rho_f_M_t[:,1:W+1],
+    #                          axis=1)
+     return tau_int, rho_f_M_t
      
