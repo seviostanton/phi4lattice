@@ -156,14 +156,15 @@ def obs_derivative(#n_observables,
 def autocorrelation_time(gamma: jnp.ndarray,
                          primary_observables_dict: dict[str, jnp.ndarray],
                          secondary_fns: tuple[Callable, ...],
-                         W_arr):
+                         c = 4
+                         ):
      """
      schaefer eq (3.4),(3.5)
      tau_int_F = 0.5 + 1.0/v_f * jnp.sum(gamma_f_t) = 0.5 + jnp.sum(rho_f_t)
      truncated at 0<W<T
 
      """
-     M = gamma.shape[0]  # number of observables
+      
     #  a = len(primary_observables_dict)  # number of primary observables
     #  b = len(secondary_fns)
 
@@ -203,21 +204,149 @@ def autocorrelation_time(gamma: jnp.ndarray,
      # we average over the parallel chains (axis=-1) to get shape (M, T)
      gamma_f_M_t = gamma_f_M_tc.mean(axis=-1)
 
+
      v_f_M = gamma_f_M_t[:,0]
 
      rho_f_M_t = gamma_f_M_t / v_f_M[:,None]
+     M, T = rho_f_M_t.shape
+
      # cumulative sum of the autocorrelation function excluding the zero lag
      rho_cumulative = jnp.cumsum(rho_f_M_t[:,1:], axis=1)
+     # shape of rho_cumulative is (M, T-1)
 
      # prepend 0.5 to the cumulative sum to account for the zero lag
      tau_cumulative = jnp.concatenate((jnp.full((M,1), 0.5),
-                                       rho_cumulative),
-                                       axis=1)
-     if W_arr.shape != (M,):
-         raise ValueError("W_arr must have shape (M,), one window per observable")
-     tau_int = jnp.take_along_axis(tau_cumulative, W_arr[:,None], axis=1)
+                                       0.5+ rho_cumulative),
+                                       axis=1)  # shape (M, T)
+     
+     W_sokal_arr = sokal_window(tau_cumulative, c)
+
+     # compute the integrated autocorrelation time for each observable using the specified window
+     def integrate_tau(W_arr):
+        valid = W_arr > 0
+        W_arr_safe = jnp.where(valid, W_arr, 0)
+
+        tau_int = tau_cumulative[jnp.arange(tau_cumulative.shape[0]),
+                                 W_arr_safe]
+        # tau_int = jnp.where(W_arr >0,
+        #                     jnp.take_along_axis(tau_cumulative, W_arr[:,None], axis=1),
+        #                     jnp.nan)
+
+        # if any a
+        return jnp.where(valid, tau_int, jnp.nan)
+
+     tau_int_f_sokal = integrate_tau(W_sokal_arr)
+     
+    # shape of tau_int_f is (M,)
+
     #  # axis 1 corresponds to the time lags
     #  tau_int = lambda W: 0.5 + jnp.sum(rho_f_M_t[:,1:W+1],
     #                          axis=1)
-     return tau_int, rho_f_M_t
+
+     results_dict = {
+         "rho_f_M_t": rho_f_M_t,
+         "W_sokal_arr": W_sokal_arr,
+         "tau_int_f_sokal": tau_int_f_sokal
+     }
+     return results_dict
+
+def sokal_window(tau_cumulative, c=4):
+    """
+    Parameters
+    ----------
+    tau_cumulative : jnp.ndarray
+        Array of cumulative autocorrelation times for each observable.
+        Shape (M, T), where M is the number of observables and T is the number of time lags.
+    c : float, optional
+        Sokal criterion constant, by default 4.
+
+    Returns
+    -------
+    W_first : int or None
+        The first window size in W_arr that satisfies the Sokal criterion, or -1 if no such window exists.
+    """
+    # def sokal_variance(W, tau_int_f):
+    #     return (4*W+2)/2 * tau_int_f**2
+
+    t_arr = jnp.arange(tau_cumulative.shape[1])
+
+    # shape (1, T) to broadcast with tau_cumulative
+    t_arr = t_arr[None, :]  
+
+    mask_arr = (t_arr >= 1) & (t_arr >= c*tau_cumulative)
+    # shape of mask_arr is (M, T)
+
+    # first index along time lags where the mask is True
+    first = jnp.argmax(mask_arr, axis=1)  # returns index of first 1
+    all_found = mask_arr.any(axis=1) #
+
+    # if no window satisfies the Sokal criterion,
+    # we return -1 for that observable
+    W_first = jnp.where(all_found, first, -1)
+    # shape of W_first is (M,), one w per observable
+
+    return W_first
+
+
+def luscher_window(rho_f_M_t, N, lam = 100):
+     M, T = rho_f_M_t.shape
+
+     # k+t must be in range of available time lags
+     t_max = (T-lam-1)//2
+
+     if t_max <1:
+          raise ValueError("insufficient lags for lambda")
+
+     # exclude 0 time
+     t_arr = jnp.arange(1,t_max + 1)
+
+     # itterated time index k = 1 to t-lam
+     k_arr = jnp.arange(1, T)
      
+
+     def rho_variance(t):
+          # get valid indices for k 
+
+          # indices for k+t
+          kp = jnp.minimum(k_arr+t, T-1) 
+          # ex) T=8, t=2, pick the lesser of k+t and T-1
+          #  k_array = [1, 2, 3, 4, 5, 6, 7]
+          #  kp = [3, 4, 5, 6, 7, 7, 7]
+
+          # indices for k-t
+          km = jnp.abs(k_arr-t)
+          # ex) T=8, t=2, pick the absolute difference of k-t
+          #  k_array = [1, 2, 3, 4, 5, 6, 7]
+          #  km = [1, 0, 1, 2, 3, 4, 5]
+          # negative values are allowed because rho(t)=rho(-t)
+          
+          # for all observables,
+          # collect only the rho values for the valid indices
+          # this will produce duplicates that we cut later
+          rho_kpt = rho_f_M_t[:, kp]  # (M, len(k_array))
+          rho_kmt = rho_f_M_t[:, km]  # (M, len(k_array))
+          rho_k = rho_f_M_t[:, k_arr] # (M, len(k_array))
+          rho_t = rho_f_M_t[:, t, None] # (M, 1) to broadcast with rho_k
+
+          s = (rho_kpt + rho_kmt - 2*rho_k*rho_t)**2
+          # shape of s is (M, len(k_array))
+
+          #  last term in sum is k=t+lam
+          # but we only have T measurements
+          # so we disallow any k+t above T
+          valid_k = (k_arr <= t+lam) & (k_arr+t<T) # shape (len(k_array),)
+          valid_k = valid_k[:, None] # shape (len(k_array), 1) for broadcasting with s
+
+          # sum over valid k indices only
+          rho_var = jnp.where(valid_k, s.sum(axis=1), 0.0)/N
+          return rho_var
+     
+     rho_var_arr = jnp.where(valid_t[:, None],
+                             jax.vmap(rho_variance)(t_arr),
+                             -1)
+     found = jnp.where(rho_var_arr > 0,
+               jnp.sqrt(rho_var_arr)>=rho_f_M_t,
+               -1)
+     w = jnp.argmax(found >= 0, axis=1)  # first index where the condition is met
+     return w
+
