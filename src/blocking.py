@@ -97,23 +97,57 @@ def apply_smoothing_kernel_paper(phi: jnp.ndarray,
 #     K = normalize_smoothing_kernel(K, b=b, d=d, eta=eta)
 #     return K
 
+def make_orbit_map(d, max_r_i):
+    orbit_shape = (2 * max_r_i + 1,)*d
+    K_indices = jnp.stack(jnp.indices(orbit_shape), axis=-1)
+    # finds the abs offset from the center of the orbit/K
+    offsets = jnp.abs(K_indices - max_r_i)
+
+    # sort offsets so we can find uniques
+    sorted_offsets = jnp.sort(offsets, axis=-1)
+
+    # find unique offsets
+    unique_offsets, inverse_arr, multiplicities = jnp.unique(
+        sorted_offsets.reshape(-1, d),
+        axis=0,
+        return_inverse=True,
+        return_counts=True,
+    )
+    d4_map = inverse_arr.reshape(orbit_shape)
+    n_unique_orbits = unique_offsets.shape[0]
+    
+    return d4_map, n_unique_orbits, multiplicities
+
+
+
+
 def initialize_smoothing_kernel(b=2,
                                 d=2,  # can get from len(spatial_axes)
                                 eta=1 / 4,
                                 max_r_i=3,
-                                seed=None):
+                                seed=0):
     # initialize K
-    if seed is None:
-        seed = jax.random.PRNGKey(0)
+    # if seed is None:
+    #     key = jax.random.PRNGKey(0)
 
     key = jax.random.PRNGKey(seed)
-    K_shape = (2 * max_r_i + 1, 2 * max_r_i + 1)
+    # K_shape = (2 * max_r_i + 1,)*d
+    # this made manhattan distance which is more restrictive
+    #   init_vals = jax.random.normal(key, max_r_i * d + 1)
+    #   K_indices = jnp.stack(jnp.indices(K_shape), axis=-1)
+    #   d4_map = (abs(K_indices - max_r_i)).sum(axis=-1)
+    #   K = init_vals[d4_map]
 
-    init_vals = jax.random.normal(key, max_r_i * d + 1)
-    K_indices = jnp.stack(jnp.indices(K_shape), axis=-1)
-    d4_map = (abs(K_indices - max_r_i)).sum(axis=-1)
-    # K = init_vals[d4_map]
-    K = make_smothing_kernel(init_vals, d4_map)
+    d4_map, n_unique_orbits, multiplicities = make_orbit_map(d, max_r_i)
+    # make a random initialization for the non-central orbit values
+    init_orbit_vals = jax.random.normal(key, n_unique_orbits-1)
+    # K_0 = 0. # central orbit value
+    # init_vals = jnp.concatenate([jnp.array([K_0]), init_theta])
+    
+
+    K, K_vals = make_smothing_kernel(init_orbit_vals,
+                                     d4_map, multiplicities,
+                                     b=b, d=d, eta=eta)
 
     # ex) offset_range=3 -> K_shape=(7, 7) like paper
 
@@ -129,34 +163,44 @@ def initialize_smoothing_kernel(b=2,
     # get upper index if needed
 
     # enforce normalization
-    K = normalize_smoothing_kernel(K, b=b, d=d, eta=eta)
-    return K, init_vals, d4_map
+    # K = normalize_smoothing_kernel(K, b=b, d=d, eta=eta)
+    return K, init_orbit_vals, d4_map
 
 
-def make_smothing_kernel(K_vals, d4_map):
-    return K_vals[d4_map]
+def make_smothing_kernel(orbit_vals, d4_map, multiplicities, b=2, d=2, eta=1 / 4):
+    # force normalization condition by fixing central coefficient
+    #   sum(K) = b^gamma
+    #   K_0 = b^gamma - sum_{i != 0} K_i
+    K_0 = b ** ((d - 2 + eta) / 2) - jnp.dot(orbit_vals, multiplicities[1:])
+
+    K_vals = jnp.concatenate([jnp.array([K_0]), orbit_vals])
+    K = K_vals[d4_map]
+    return K, K_vals
 
 
-def normalize_smoothing_kernel(K,
-                               b=2,  # blocking factor
-                               d=2,  # spatial dimensions
-                               eta=1 / 4  # critical scaling exponent
-                               ):
-    # assumes gaussian kinetic action term
-    #    S = 1/2 int d^dx (gradphi)^2
-    #    rescale: x'=x/b;
-    #             phi'(x') = b^gamma phi(bx')
-    #             grad = 1/b grad'
-    #    S = 1/2int d^d(b x') (b^(-1-gamma) grad'phi'(x'))^2
-    #      = 1/2 b^(d-2-2gamma) int d^dx' (grad'phi(x'))^2
-    #    scale invariance requires d-2-2gamma = 0 at the critical point
-    #    gamma = (d-2+eta)/2
+# def normalize_smoothing_kernel(K,
+#                                b=2,  # blocking factor
+#                                d=2,  # spatial dimensions
+#                                eta=1 / 4  # critical scaling exponent
+#                                ):
+#     # assumes gaussian kinetic action term
+#     #    S = 1/2 int d^dx (gradphi)^2
+#     #    rescale: x'=x/b;
+#     #             phi'(x') = b^gamma phi(bx')
+#     #             grad = 1/b grad'
+#     #    S = 1/2int d^d(b x') (b^(-1-gamma) grad'phi'(x'))^2
+#     #      = 1/2 b^(d-2-2gamma) int d^dx' (grad'phi(x'))^2
+#     #    scale invariance requires d-2-2gamma = 0 at the critical point
+#     #    gamma = (d-2+eta)/2
 
-    # paper uses normalization sum(K)=b^gamma
-    gamma = (d - 2 + eta) / 2
-    K = b**gamma * K / jnp.sum(K)
-    assert jnp.isclose(jnp.sum(K), b**gamma)
-    return K
+#     # this approach fails to keep the normalization during grad descent
+#     # # paper uses normalization sum(K)=b^gamma
+#     # gamma = (d - 2 + eta) / 2
+#     # K = b**gamma * K / jnp.sum(K)
+#     # # assert jnp.isclose(jnp.sum(K), b**gamma)
+
+
+#     return K
 
 
 # I think I may be able to use autocorrelation.py instead
@@ -189,7 +233,9 @@ def observable_covariance_tensor(obs_dict):
 
     # compute the covariance of each pair of observables
     # shape: (N observables, N observables)
-    obs_covar_arr = jnp.cov(obs_arr, rowvar=False) / N_samples
+    # obs_covar_arr = jnp.cov(obs_arr, rowvar=False) / N_samples
+    obs_covar_arr = jnp.cov(obs_arr, rowvar=True) / N_samples
+
     return obs_covar_arr
 
 
@@ -235,11 +281,60 @@ def apply_smoothing_kernel(phi: jnp.ndarray,
     if phi.ndim not in (len(spatial_axes), len(spatial_axes) + 1):
         raise ValueError(
             "phi must be a d-dimensional field or batch of d-dimensional fields")
-    psi = jnp.zeros_like(phi)
-    for index in jnp.ndindex(K.shape):
-        shift = tuple(i - max_r_i for i in index)
-        phi_shifted = jnp.roll(phi, shift=shift, axis=spatial_axes)
-        psi += K[index] * phi_shifted
+    # psi = jnp.zeros_like(phi)
+    # for index in jnp.ndindex(K.shape):
+    #     shift = tuple(i - max_r_i for i in index)
+    #     phi_shifted = jnp.roll(phi, shift=shift, axis=spatial_axes)
+    #     psi += K[index] * phi_shifted
+    d = K.ndim
+    # can use phi.shape[-d:] to get the spatial shape
+    #   ex) phi.shape = (N, L, L, L) -> spatial_shape = (L, L, L) for d = 3
+    spatial_shape = phi.shape[-d:]
+
+    # # get padding for K
+    # #   conv 2 arr and find diff
+    # #   for spat_shap (32,32) & k_shape (7,7) 
+    # #     size_diff = (25,25)
+    # size_diff = jnp.array(spatial_shape) - jnp.array(K.shape) 
+    # # for spat_shap (32,32) & k_shape (7,7) 
+    # #   pad_width = array([[0, 25], [0, 25]])
+    # pad_width = jnp.stack([jnp.zeros(d, dtype=int),size_diff],
+    #                       axis=1)
+
+    # get padding for K
+    #    gives pad_width = ((12, 13), (12, 13))
+    #       for spatial_shape = (32, 32) and K.shape = (7, 7)
+    #    each tuple in pad width gives the padding before and after each spatial axis
+    #       ex) add 12 zeros before and 13 zeros after each spatial axis
+    pad_width = tuple(((n-k)//2, n-k-(n-k)//2) for n, k in zip(spatial_shape, K.shape))
+    K_padded = jnp.pad(K, pad_width)
+
+    # shift the centered kernel so its origin is at index 0 for FFT convolution
+    K_padded = jnp.fft.ifftshift(K_padded)
+
+    # transform the padded kernel and field to Fourier space
+    K_p = jnp.fft.fftn(K_padded)
+    phi_p = jnp.fft.fftn(phi, axes=spatial_axes)
+
+    # convolution becomes elementwise multiplication in Fourier space
+    #  K(r) = sum_p K(p) exp(i r.p)  & K(-r) = K(r)
+    #  phi(x+r) = sum_p phi(p) exp(i(x+r).p)
+    #  psi(x) = sum_r K(r) phi(x+r) 
+    #         = sum_r K(r) [sum_p phi(p) exp(i(x+r).p)]
+    #         = sum_p phi(p) exp(i x.p) [sum_r K(r) exp(i r.p)]
+    #         = sum_p phi(p) exp(i x.p) K(-p)
+    #         = sum_p phi(p) exp(i x.p) K(p) from K(-r) = K(r)
+    #  psi(q) = sum_x psi(x) exp(-i x.q)
+    #         = sum_xsum_p phi(p) exp(i x.p) K(p) exp(-i x.q)
+    #         = sum_p phi(p) K(p) sum_x exp(i x.(p-q))
+    #         = sum_p phi(p) K(p) kroneckler(p,q)
+    #         = phi(q) K(q)
+
+    psi_p = phi_p * K_p
+
+    # transform the convolved field back to real space
+    #   should be real but .real() takes real part if complex
+    psi = jnp.fft.ifftn(psi_p, axes=spatial_axes).real()
 
     return psi
 
@@ -268,14 +363,14 @@ def optimize_kernel(lat_coarse,
                     b,
                     # init_vals,
                     d4_map,
-                    K_vals,
+                    orbit_vals,
                     measure_fns_dict,
                     epochs=100
                     ):
     """
     """
     # smooth fine lattice
-    K0 = make_smothing_kernel(K_vals, d4_map)
+    # K = make_smothing_kernel(orbit_vals, d4_map, b=b, d=len(lat_fine.spatial_axes))
     # phi_fine = lat_fine.phi_x
     # psi = apply_smoothing_kernel(phi_fine,
     #                              K,
@@ -304,49 +399,69 @@ def optimize_kernel(lat_coarse,
     optimized_K_dict["d4_map"] = d4_map
 
     def loss_fn(K_vals):
-        optimized_K_dict["K_vals"] = K_vals
-        K = make_smothing_kernel(K_vals, d4_map)
-        optimized_K_dict["K"] = K
+        # optimized_K_dict["K_vals"] = K_vals
+        orbit_vals = K_vals[1:]
+        K, K_vals = make_smothing_kernel(orbit_vals, d4_map, b=b, d=len(lat_fine.spatial_axes))
+        # optimized_K_dict["K"] = K
 
         psi = apply_smoothing_kernel(lat_fine.phi_x,
                                      K,
                                      max_r_i,
                                      lat_fine.spatial_axes)
-        optimized_K_dict["psi"] = psi
+        # optimized_K_dict["psi"] = psi
 
         phi_blocked = decimate(psi,
                                d=len(lat_fine.spatial_axes),
                                b=b)
-        optimized_K_dict["phi_blocked"] = phi_blocked
+        # optimized_K_dict["phi_blocked"] = phi_blocked
 
         blocked_obs_dict = get_obs_dict(phi_blocked)
-        optimized_K_dict["blocked_obs_dict"] = blocked_obs_dict
+        # optimized_K_dict["blocked_obs_dict"] = blocked_obs_dict
 
         chi_K2 = get_chi_K2(coarse_obs_dict,
                             blocked_obs_dict)
-        optimized_K_dict["chi_K2(loss)"] = chi_K2
+        # optimized_K_dict["chi_K2(loss)"] = chi_K2
         return chi_K2
 
-    def grad_descent(K_vals):
-        grad_K_vals = jax.grad(loss_fn)(K_vals)
-        K_vals = K_vals - grad_K_vals
-        return K_vals
+    def grad_descent(K_vals, _):
+        loss, grad_K = jax.value_and_grad(loss_fn)(K_vals)
+        new_K_vals = K_vals - grad_K
+        return new_K_vals, (K_vals, loss)
 
-    optimized_K_vals_arr = jax.lax.scan(grad_descent,
+    final_k_vals, (K_vals_history, loss_history) = jax.lax.scan(grad_descent,
                                         K_vals,
+                                        xs = None,
                                         length=epochs)
+    
+    # evaluate final updated coefficients
+    K_vals_history = jnp.concatenate([K_vals_history, final_k_vals[None, :]],
+                                     axis=0)
+    loss_history = jnp.concatenate([loss_history,
+                                    jax.value_and_grad(loss_fn)(final_k_vals)[0][None]],
+                                   axis=0)
 
-    optimized_K = optimized_K_dict["K"][jnp.argmin(
-        optimized_K_dict["chi_K2(loss)"])]
-    optimized_psi_blocked = apply_smoothing_kernel(lat_fine.phi_x,
-                                                   optimized_K,
+    # find coefficients that minimize the loss (chi_K^2)
+    best_idx = jnp.argmin(loss_history)
+    best_K_vals = K_vals_history[best_idx]
+    optimized_K_dict["best_K_vals"] = best_K_vals
+
+    # best kernel
+    best_K = make_smothing_kernel(best_K_vals[1:],
+                                  d4_map,
+                                  b=b,
+                                  d=len(lat_fine.spatial_axes))[0]
+    optimized_K_dict["best_K"] = best_K
+
+    
+    best_psi_blocked = apply_smoothing_kernel(lat_fine.phi_x,
+                                                   best_K,
                                                    max_r_i,
                                                    lat_fine.spatial_axes)
-    optimized_phi_blocked = decimate(optimized_psi_blocked,
+    best_phi_blocked = decimate(best_psi_blocked,
                                      d=len(lat_fine.spatial_axes),
                                      b=b)
-    optimized_K_dict["optimized_K"] = optimized_K
-    optimized_K_dict["optimized_psi_blocked"] = optimized_psi_blocked
-    optimized_K_dict["optimized_phi_blocked"] = optimized_phi_blocked
+    optimized_K_dict["optimized_K"] = best_K
+    optimized_K_dict["optimized_psi_blocked"] = best_psi_blocked
+    optimized_K_dict["optimized_phi_blocked"] = best_phi_blocked
 
     return optimized_K_dict
