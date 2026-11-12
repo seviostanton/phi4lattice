@@ -64,8 +64,8 @@ def make_smoothing_kernel_paper():
 
 
 def apply_smoothing_kernel_paper(phi: jnp.ndarray,
-                           K: jnp.ndarray,
-                           spatial_axes: tuple):
+                                 K: jnp.ndarray,
+                                 spatial_axes: tuple):
     # phi could be batched (N, L, L) or just (L, L)
     if phi.ndim not in (2, 3):
         raise ValueError("phi must be 2D field or batch of 2D fields")
@@ -99,9 +99,9 @@ def apply_smoothing_kernel_paper(phi: jnp.ndarray,
 
 def initialize_smoothing_kernel(b=2,
                                 d=2,  # can get from len(spatial_axes)
-                                eta=1/4,
+                                eta=1 / 4,
                                 max_r_i=3,
-                                seed = None):
+                                seed=None):
     # initialize K
     if seed is None:
         seed = jax.random.PRNGKey(0)
@@ -118,7 +118,7 @@ def initialize_smoothing_kernel(b=2,
     # ex) offset_range=3 -> K_shape=(7, 7) like paper
 
     # D4 symmetry gives upper triangle
-    
+
     # K = jax.random.randint(key, K_shape, -10*3, 10**3)
     # enforce D4 symmetry
     # K_diag = jnp.diag(jnp.diag(K))
@@ -135,16 +135,16 @@ def initialize_smoothing_kernel(b=2,
 
 def make_smothing_kernel(K_vals, d4_map):
     return K_vals[d4_map]
-    
+
 
 def normalize_smoothing_kernel(K,
                                b=2,  # blocking factor
                                d=2,  # spatial dimensions
-                               eta=1/4  # critical scaling exponent
+                               eta=1 / 4  # critical scaling exponent
                                ):
     # assumes gaussian kinetic action term
     #    S = 1/2 int d^dx (gradphi)^2
-    #    rescale: x'=x/b; 
+    #    rescale: x'=x/b;
     #             phi'(x') = b^gamma phi(bx')
     #             grad = 1/b grad'
     #    S = 1/2int d^d(b x') (b^(-1-gamma) grad'phi'(x'))^2
@@ -153,7 +153,7 @@ def normalize_smoothing_kernel(K,
     #    gamma = (d-2+eta)/2
 
     # paper uses normalization sum(K)=b^gamma
-    gamma = (d-2+eta) / 2
+    gamma = (d - 2 + eta) / 2
     K = b**gamma * K / jnp.sum(K)
     assert jnp.isclose(jnp.sum(K), b**gamma)
     return K
@@ -210,7 +210,7 @@ def get_chi_K2(coarse_obs_dict,
 
     # compute the mean of each observable in the dictionary
     coarse_obs_means_dict = jax.tree.map(lambda obs: obs.mean(axis=0),
-                                  coarse_obs_dict)
+                                         coarse_obs_dict)
     coarse_obs_means_arr = jnp.array(jax.tree.leaves(coarse_obs_means_dict))
 
     blocked_obs_means_dict = jax.tree.map(lambda obs: obs.mean(axis=0),
@@ -233,19 +233,20 @@ def apply_smoothing_kernel(phi: jnp.ndarray,
                            spatial_axes: tuple):
     # phi could be batched (N, (L,)*d) or just (L,)*d
     if phi.ndim not in (len(spatial_axes), len(spatial_axes) + 1):
-        raise ValueError("phi must be a d-dimensional field or batch of d-dimensional fields")
+        raise ValueError(
+            "phi must be a d-dimensional field or batch of d-dimensional fields")
     psi = jnp.zeros_like(phi)
     for index in jnp.ndindex(K.shape):
         shift = tuple(i - max_r_i for i in index)
         phi_shifted = jnp.roll(phi, shift=shift, axis=spatial_axes)
         psi += K[index] * phi_shifted
-    
+
     return psi
 
 
 def decimate(psi,
              d,
-             b = 2):
+             b=2):
     # if d != psi.ndim:
     #     # batched = True
 
@@ -257,9 +258,7 @@ def decimate(psi,
     phi_blocked = psi[(...,) + (slice(None, None, b),) * d]
     return phi_blocked
 
-    
 
-             
 def optimize_kernel(lat_coarse,
                     # coarse_obs_dict,
                     lat_fine,
@@ -271,7 +270,7 @@ def optimize_kernel(lat_coarse,
                     d4_map,
                     K_vals,
                     measure_fns_dict,
-                    epochs = 100
+                    epochs=100
                     ):
     """
     """
@@ -289,7 +288,6 @@ def optimize_kernel(lat_coarse,
     #                        b=b
     #                        )
 
-    
     def get_obs_dict(phi_x):
         obs_dict = {}
         # compute observables
@@ -304,6 +302,7 @@ def optimize_kernel(lat_coarse,
     #                     blocked_obs_dict)
     optimized_K_dict = {}
     optimized_K_dict["d4_map"] = d4_map
+
     def loss_fn(K_vals):
         optimized_K_dict["K_vals"] = K_vals
         K = make_smothing_kernel(K_vals, d4_map)
@@ -314,7 +313,7 @@ def optimize_kernel(lat_coarse,
                                      max_r_i,
                                      lat_fine.spatial_axes)
         optimized_K_dict["psi"] = psi
-        
+
         phi_blocked = decimate(psi,
                                d=len(lat_fine.spatial_axes),
                                b=b)
@@ -322,7 +321,7 @@ def optimize_kernel(lat_coarse,
 
         blocked_obs_dict = get_obs_dict(phi_blocked)
         optimized_K_dict["blocked_obs_dict"] = blocked_obs_dict
-        
+
         chi_K2 = get_chi_K2(coarse_obs_dict,
                             blocked_obs_dict)
         optimized_K_dict["chi_K2(loss)"] = chi_K2
@@ -332,12 +331,13 @@ def optimize_kernel(lat_coarse,
         grad_K_vals = jax.grad(loss_fn)(K_vals)
         K_vals = K_vals - grad_K_vals
         return K_vals
-    
+
     optimized_K_vals_arr = jax.lax.scan(grad_descent,
                                         K_vals,
-                                        length = epochs)
-    
-    optimized_K = optimized_K_dict["K"][jnp.argmin(optimized_K_dict["chi_K2(loss)"])]
+                                        length=epochs)
+
+    optimized_K = optimized_K_dict["K"][jnp.argmin(
+        optimized_K_dict["chi_K2(loss)"])]
     optimized_psi_blocked = apply_smoothing_kernel(lat_fine.phi_x,
                                                    optimized_K,
                                                    max_r_i,
@@ -348,5 +348,5 @@ def optimize_kernel(lat_coarse,
     optimized_K_dict["optimized_K"] = optimized_K
     optimized_K_dict["optimized_psi_blocked"] = optimized_psi_blocked
     optimized_K_dict["optimized_phi_blocked"] = optimized_phi_blocked
-    
+
     return optimized_K_dict

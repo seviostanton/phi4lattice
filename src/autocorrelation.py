@@ -61,7 +61,7 @@ def autocovariance(obs1: jnp.ndarray,
                     ) + O(1/N)
         """
         # upper limit N-t
-        valid_filter = jnp.arange(N) < (N-t)
+        valid_filter = jnp.arange(N) < (N - t)
         # make column vector to broadcast in jnp.where
         valid_filter = valid_filter[:, None]
 
@@ -71,13 +71,13 @@ def autocovariance(obs1: jnp.ndarray,
         # y=0 inserts zeros for the invalid positions
         # keeping size static
         gamma = jnp.sum(jnp.where(valid_filter,
-                                  obs1_residual*obs2_shifted,
+                                  obs1_residual * obs2_shifted,
                                   0),
-                        axis=0)/(N-t)
+                        axis=0) / (N - t)
         return gamma
 
     # need 0 for luscher window selection later
-    t_arr = jnp.arange(t_max+1)
+    t_arr = jnp.arange(t_max + 1)
 
     return jax.vmap(gamma_a_b_t)(t_arr)
 
@@ -103,7 +103,8 @@ def autocovariance_tensor(observables_arr: jnp.ndarray,
         # t_max = N//2  # worried this will cut too soon
         t_max = N
 
-    # vectorized like [[obs[1],obs[1]], [obs[2],obs[2]], ...] for all pairs of observables
+    # vectorized like [[obs[1],obs[1]], [obs[2],obs[2]], ...] for all pairs of
+    # observables
     def gamma_for_obs_a(obs_a):
         return jax.vmap(lambda obs_b:  # f(a, g(a, b))
                         autocovariance(obs_a,
@@ -115,8 +116,9 @@ def autocovariance_tensor(observables_arr: jnp.ndarray,
 
 
 def obs_derivative(  # n_observables,
-                   primary_observables_dict: dict,  # shape: (N_trajectory steps, N_parallel_chains)
-                   secondary_fns: tuple[Callable, ...]):
+        # shape: (N_trajectory steps, N_parallel_chains)
+        primary_observables_dict: dict,
+        secondary_fns: tuple[Callable, ...]):
     # n_observables = observables.shape[0]
     # n_primary_observables = primary_observables.shape[0]
 
@@ -228,7 +230,8 @@ def autocorrelation_time(gamma: jnp.ndarray,
 
     W_sokal_arr = sokal_window(tau_cumulative, c)
 
-    # compute the integrated autocorrelation time for each observable using the specified window
+    # compute the integrated autocorrelation time for each observable using
+    # the specified window
     def integrate_tau(W_arr):
         valid = W_arr > 0
         W_arr_safe = jnp.where(valid, W_arr, 0)
@@ -251,9 +254,9 @@ def autocorrelation_time(gamma: jnp.ndarray,
     #                          axis=1)
 
     results_dict = {
-         "rho_f_M_t": rho_f_M_t,
-         "W_sokal_arr": W_sokal_arr,
-         "tau_int_f_sokal": tau_int_f_sokal
+        "rho_f_M_t": rho_f_M_t,
+        "W_sokal_arr": W_sokal_arr,
+        "tau_int_f_sokal": tau_int_f_sokal
     }
     return results_dict
 
@@ -282,12 +285,13 @@ def sokal_window(tau_cumulative, c=4):
     # shape (1, T) to broadcast with tau_cumulative
     t_arr = t_arr[None, :]
 
-    mask_arr = (t_arr >= 1) & (t_arr >= c*tau_cumulative)
+    mask_arr = (t_arr >= 1) & (t_arr >= c * tau_cumulative)
     # shape of mask_arr is (M, T)
 
     # first index along time lags where the mask is True
     first = jnp.argmax(mask_arr, axis=1)  # returns index of first 1
-    # returns True if any window satisfies the Sokal criterion for each observable
+    # returns True if any window satisfies the Sokal criterion for each
+    # observable
     found_mask = mask_arr.any(axis=1)
 
     # if no window satisfies the Sokal criterion,
@@ -309,7 +313,7 @@ def luscher_window(rho_f_M_t, N, lam=100):
     # but we also have rho(k+t) in the sum, so k+t<= T-1 for the indices to be valid
     # -> (t+lam)+t <= T
     # -> t <= (T-lam)/2
-    t_max = (T-lam)//2  # //2 because we need integer
+    t_max = (T - lam) // 2  # //2 because we need integer
 
     if t_max < 1:
         raise ValueError("insufficient lags for lambda")
@@ -324,13 +328,13 @@ def luscher_window(rho_f_M_t, N, lam=100):
         # get valid indices for k
 
         # indices for k+t
-        kp = jnp.minimum(k_arr+t, T)
+        kp = jnp.minimum(k_arr + t, T)
         # ex) T=7, t=2, pick the lesser of k+t and T
         #  k_array = [1, 2, 3, 4, 5, 6, 7]
         #  kp = [3, 4, 5, 6, 7, 7, 7]
 
         # indices for k-t
-        km = jnp.abs(k_arr-t)
+        km = jnp.abs(k_arr - t)
         # ex) T=8, t=2, pick the absolute difference of k-t
         #  k_array = [1, 2, 3, 4, 5, 6, 7]
         #  km = [1, 0, 1, 2, 3, 4, 5]
@@ -344,17 +348,23 @@ def luscher_window(rho_f_M_t, N, lam=100):
         rho_k = rho_f_M_t[:, k_arr]  # (M, len(k_array))
         rho_t = rho_f_M_t[:, t, None]  # (M, 1) to broadcast with rho_k
 
-        s = (rho_kpt + rho_kmt - 2*rho_k*rho_t)**2
+        s = (rho_kpt + rho_kmt - 2 * rho_k * rho_t)**2
         # shape of s is (M, len(k_array))
 
         #  last term in sum is k=t+lam
         # but we only have T measurements
         # so we disallow any k+t above T
-        valid_k = (k_arr <= t+lam) & (k_arr+t < T+1)  # shape (len(k_array),)
-        valid_k = valid_k[:, None]  # shape (len(k_array), 1) for broadcasting with s
+        valid_k = (
+            k_arr <= t +
+            lam) & (
+            k_arr +
+            t < T +
+            1)  # shape (len(k_array),)
+        # shape (len(k_array), 1) for broadcasting with s
+        valid_k = valid_k[:, None]
 
         # sum over valid k indices only
-        rho_var = jnp.where(valid_k, s.sum(axis=1), -1)/N
+        rho_var = jnp.where(valid_k, s.sum(axis=1), -1) / N
         # shape of rho_var is (M,)
 
         return rho_var
@@ -370,7 +380,8 @@ def luscher_window(rho_f_M_t, N, lam=100):
             )
 
     first = jnp.argmax(mask, axis=1)  # first index where the condition is met
-    found = mask.any(axis=1)  # True if any t satisfies the condition for each observable
+    # True if any t satisfies the condition for each observable
+    found = mask.any(axis=1)
 
     # t_array[first] gives the first t where the condition is met for each observable
     # get the first t where the condition is met for each observable
