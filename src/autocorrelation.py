@@ -115,7 +115,7 @@ def autocovariance_tensor(observables_arr: jnp.ndarray,
 
 
 def obs_derivative(  # n_observables,
-                   primary_observables_dict: dict,
+                   primary_observables_dict: dict,  # shape: (N_trajectory steps, N_parallel_chains)
                    secondary_fns: tuple[Callable, ...]):
     # n_observables = observables.shape[0]
     # n_primary_observables = primary_observables.shape[0]
