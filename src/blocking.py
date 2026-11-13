@@ -146,7 +146,7 @@ def initialize_smoothing_kernel(b=2,
     # init_vals = jnp.concatenate([jnp.array([K_0]), init_theta])
     
 
-    K, K_vals = make_smothing_kernel(init_orbit_vals,
+    K, K_vals = make_smoothing_kernel(init_orbit_vals,
                                      d4_map, multiplicities,
                                      b=b, d=d, eta=eta)
 
@@ -168,7 +168,7 @@ def initialize_smoothing_kernel(b=2,
     return K, K_vals, d4_map, multiplicities
 
 
-def make_smothing_kernel(orbit_vals, d4_map, multiplicities, b=2, d=2, eta=1 / 4):
+def make_smoothing_kernel(orbit_vals, d4_map, multiplicities, b=2, d=2, eta=1 / 4):
     # force normalization condition by fixing central coefficient
     #   sum(K) = b^gamma
     #   K_0 = b^gamma - sum_{i != 0} K_i
