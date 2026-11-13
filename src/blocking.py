@@ -98,8 +98,8 @@ def apply_smoothing_kernel_paper(phi: jnp.ndarray,
 #     return K
 
 def make_orbit_map(d, max_r_i):
-    orbit_shape = (2 * max_r_i + 1,)*d
-    K_indices = jnp.stack(jnp.indices(orbit_shape), axis=-1)
+    K_shape = (2 * max_r_i + 1,)*d
+    K_indices = jnp.stack(jnp.indices(K_shape), axis=-1)
     # finds the abs offset from the center of the orbit/K
     offsets = jnp.abs(K_indices - max_r_i)
 
@@ -113,7 +113,7 @@ def make_orbit_map(d, max_r_i):
         return_inverse=True,
         return_counts=True,
     )
-    d4_map = inverse_arr.reshape(orbit_shape)
+    d4_map = inverse_arr.reshape(K_shape)
     n_unique_orbits = unique_offsets.shape[0]
     
     return d4_map, n_unique_orbits, multiplicities
@@ -140,7 +140,8 @@ def initialize_smoothing_kernel(b=2,
 
     d4_map, n_unique_orbits, multiplicities = make_orbit_map(d, max_r_i)
     # make a random initialization for the non-central orbit values
-    init_orbit_vals = jax.random.normal(key, n_unique_orbits-1)
+    init_orbit_vals = jax.random.normal(key,
+                                        shape=(n_unique_orbits - 1,))/1000
     # K_0 = 0. # central orbit value
     # init_vals = jnp.concatenate([jnp.array([K_0]), init_theta])
     
@@ -164,7 +165,7 @@ def initialize_smoothing_kernel(b=2,
 
     # enforce normalization
     # K = normalize_smoothing_kernel(K, b=b, d=d, eta=eta)
-    return K, init_orbit_vals, d4_map
+    return K, K_vals, d4_map, multiplicities
 
 
 def make_smothing_kernel(orbit_vals, d4_map, multiplicities, b=2, d=2, eta=1 / 4):
@@ -302,11 +303,11 @@ def apply_smoothing_kernel(phi: jnp.ndarray,
     #                       axis=1)
 
     # get padding for K
-    #    gives pad_width = ((12, 13), (12, 13))
+    #    gives pad_width = ((13, 12), (13, 12))
     #       for spatial_shape = (32, 32) and K.shape = (7, 7)
     #    each tuple in pad width gives the padding before and after each spatial axis
-    #       ex) add 12 zeros before and 13 zeros after each spatial axis
-    pad_width = tuple(((n-k)//2, n-k-(n-k)//2) for n, k in zip(spatial_shape, K.shape))
+    #       ex) add 13 zeros before and 12 zeros after each spatial axis
+    pad_width = tuple(((n//2-k//2), n-k-(n//2-k//2)) for n, k in zip(spatial_shape, K.shape))
     K_padded = jnp.pad(K, pad_width)
 
     # shift the centered kernel so its origin is at index 0 for FFT convolution
@@ -334,7 +335,7 @@ def apply_smoothing_kernel(phi: jnp.ndarray,
 
     # transform the convolved field back to real space
     #   should be real but .real() takes real part if complex
-    psi = jnp.fft.ifftn(psi_p, axes=spatial_axes).real()
+    psi = jnp.fft.ifftn(psi_p, axes=spatial_axes).real
 
     return psi
 
@@ -363,9 +364,12 @@ def optimize_kernel(lat_coarse,
                     b,
                     # init_vals,
                     d4_map,
-                    orbit_vals,
+                    K_vals,
+                    multiplicities,
+                    # orbit_vals,
                     measure_fns_dict,
-                    epochs=100
+                    epochs=100,
+                    lr=0.1
                     ):
     """
     """
@@ -398,10 +402,14 @@ def optimize_kernel(lat_coarse,
     optimized_K_dict = {}
     optimized_K_dict["d4_map"] = d4_map
 
-    def loss_fn(K_vals):
+    def loss_fn(orbit_vals):
         # optimized_K_dict["K_vals"] = K_vals
-        orbit_vals = K_vals[1:]
-        K, K_vals = make_smothing_kernel(orbit_vals, d4_map, b=b, d=len(lat_fine.spatial_axes))
+        # orbit_vals = K_vals[1:]
+        K, K_vals = make_smothing_kernel(orbit_vals,
+                                         d4_map,
+                                         multiplicities,
+                                         b=b,
+                                         d=len(lat_fine.spatial_axes))
         # optimized_K_dict["K"] = K
 
         psi = apply_smoothing_kernel(lat_fine.phi_x,
@@ -423,34 +431,54 @@ def optimize_kernel(lat_coarse,
         # optimized_K_dict["chi_K2(loss)"] = chi_K2
         return chi_K2
 
-    def grad_descent(K_vals, _):
-        loss, grad_K = jax.value_and_grad(loss_fn)(K_vals)
-        new_K_vals = K_vals - grad_K
-        return new_K_vals, (K_vals, loss)
+    def grad_descent(orbit_vals, _):
+        loss, grad_K = jax.value_and_grad(loss_fn)(orbit_vals)
+        new_orbit_vals = orbit_vals - lr * grad_K
+        return new_orbit_vals, (orbit_vals, loss)
 
-    final_k_vals, (K_vals_history, loss_history) = jax.lax.scan(grad_descent,
-                                        K_vals,
+    final_orbit_vals, (orbit_vals_history, loss_history) = jax.lax.scan(grad_descent,
+                                        K_vals[1:],
                                         xs = None,
                                         length=epochs)
     
     # evaluate final updated coefficients
-    K_vals_history = jnp.concatenate([K_vals_history, final_k_vals[None, :]],
+    orbit_vals_history = jnp.concatenate([orbit_vals_history, final_orbit_vals[None, :]],
                                      axis=0)
+    K_history, K_vals_history = jax.vmap(
+        lambda orbit_vals: make_smothing_kernel(
+            orbit_vals,
+            d4_map,
+            multiplicities,
+            b=b,
+            d=len(lat_fine.spatial_axes)
+            )
+            )(orbit_vals_history)
+
     loss_history = jnp.concatenate([loss_history,
-                                    jax.value_and_grad(loss_fn)(final_k_vals)[0][None]],
-                                   axis=0)
+                                    jax.value_and_grad(loss_fn)(final_orbit_vals)[0][None]],
+                                    axis=0)
 
     # find coefficients that minimize the loss (chi_K^2)
-    best_idx = jnp.argmin(loss_history)
-    best_K_vals = K_vals_history[best_idx]
-    optimized_K_dict["best_K_vals"] = best_K_vals
+    #    first require invertible K
+    invertible_mask = jax.vmap(invertible_kernel)(K_history)
+    #    then find the minimum loss among invertible kernels
+    best_idx = jnp.argmin(jnp.where(invertible_mask, loss_history, jnp.inf))
+    if not invertible_mask[best_idx]:
+        # invertible_mask[best_idx] gives False if no invertible kernel was found
+        raise ValueError("No invertible kernel found")
+    
+    best_orbit_vals = orbit_vals_history[best_idx]
+    optimized_K_dict["best_orbit_vals"] = best_orbit_vals
 
     # best kernel
-    best_K = make_smothing_kernel(best_K_vals[1:],
+    best_K, best_K_vals = make_smothing_kernel(best_orbit_vals,
                                   d4_map,
+                                  multiplicities,
                                   b=b,
-                                  d=len(lat_fine.spatial_axes))[0]
+                                  d=len(lat_fine.spatial_axes))
+    
     optimized_K_dict["best_K"] = best_K
+    optimized_K_dict["best_K_vals"] = best_K_vals
 
     
     best_psi_blocked = apply_smoothing_kernel(lat_fine.phi_x,
@@ -460,8 +488,23 @@ def optimize_kernel(lat_coarse,
     best_phi_blocked = decimate(best_psi_blocked,
                                      d=len(lat_fine.spatial_axes),
                                      b=b)
-    optimized_K_dict["optimized_K"] = best_K
+    # optimized_K_dict["optimized_K"] = best_K
     optimized_K_dict["optimized_psi_blocked"] = best_psi_blocked
     optimized_K_dict["optimized_phi_blocked"] = best_phi_blocked
-
+    optimized_K_dict["K_vals_history"] = K_vals_history
+    optimized_K_dict["K_history"] = K_history
+    optimized_K_dict["orbit_vals_history"] = orbit_vals_history
+    optimized_K_dict["loss_history"] = loss_history
+    optimized_K_dict["epochs"] = epochs
+    optimized_K_dict["lr"] = lr
     return optimized_K_dict
+
+
+def invertible_kernel(K,
+                      threshold=1e-8) :
+    # I think invertible K has a non-zero determinant
+    #    as long as it is square
+    return jnp.linalg.det(K) > threshold
+
+
+# def get_best():
