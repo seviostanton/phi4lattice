@@ -271,7 +271,7 @@ def get_chi_K2(coarse_obs_dict,
                         delta_obs_means,
                         jnp.linalg.inv(C_ab),
                         delta_obs_means)
-    return chi_K2
+    return chi_K2, C_ab
 
 
 def apply_smoothing_kernel(phi: jnp.ndarray,
@@ -426,17 +426,19 @@ def optimize_kernel(lat_coarse,
         blocked_obs_dict = get_obs_dict(phi_blocked)
         # optimized_K_dict["blocked_obs_dict"] = blocked_obs_dict
 
-        chi_K2 = get_chi_K2(coarse_obs_dict,
+        chi_K2, C_ab = get_chi_K2(coarse_obs_dict,
                             blocked_obs_dict)
         # optimized_K_dict["chi_K2(loss)"] = chi_K2
-        return chi_K2
+        return chi_K2, C_ab
 
     def grad_descent(orbit_vals, _):
-        loss, grad_K = jax.value_and_grad(loss_fn)(orbit_vals)
+        (loss, C_ab), grad_K = jax.value_and_grad(loss_fn, has_aux=True)(orbit_vals)
         new_orbit_vals = orbit_vals - lr * grad_K
-        return new_orbit_vals, (orbit_vals, loss)
+        return new_orbit_vals, (orbit_vals, loss, C_ab)
 
-    final_orbit_vals, (orbit_vals_history, loss_history) = jax.lax.scan(grad_descent,
+    final_orbit_vals, (orbit_vals_history,
+                       loss_history, C_ab_history
+                       ) = jax.lax.scan(grad_descent,
                                         K_vals[1:],
                                         xs = None,
                                         length=epochs)
@@ -456,6 +458,9 @@ def optimize_kernel(lat_coarse,
 
     loss_history = jnp.concatenate([loss_history,
                                     jax.value_and_grad(loss_fn)(final_orbit_vals)[0][None]],
+                                    axis=0)
+    C_ab_history = jnp.concatenate([C_ab_history,
+                                    jax.value_and_grad(loss_fn)(final_orbit_vals)[1][None]],
                                     axis=0)
 
     # find coefficients that minimize the loss (chi_K^2)
@@ -494,6 +499,7 @@ def optimize_kernel(lat_coarse,
     optimized_K_dict["K_vals_history"] = K_vals_history
     optimized_K_dict["K_history"] = K_history
     optimized_K_dict["orbit_vals_history"] = orbit_vals_history
+    optimized_K_dict["C_ab_history"] = C_ab_history
     optimized_K_dict["loss_history"] = loss_history
     optimized_K_dict["epochs"] = epochs
     optimized_K_dict["lr"] = lr
