@@ -405,7 +405,7 @@ def optimize_kernel(lat_coarse,
     def loss_fn(orbit_vals):
         # optimized_K_dict["K_vals"] = K_vals
         # orbit_vals = K_vals[1:]
-        K, K_vals = make_smothing_kernel(orbit_vals,
+        K, K_vals = make_smoothing_kernel(orbit_vals,
                                          d4_map,
                                          multiplicities,
                                          b=b,
@@ -445,7 +445,7 @@ def optimize_kernel(lat_coarse,
     orbit_vals_history = jnp.concatenate([orbit_vals_history, final_orbit_vals[None, :]],
                                      axis=0)
     K_history, K_vals_history = jax.vmap(
-        lambda orbit_vals: make_smothing_kernel(
+        lambda orbit_vals: make_smoothing_kernel(
             orbit_vals,
             d4_map,
             multiplicities,
@@ -471,7 +471,7 @@ def optimize_kernel(lat_coarse,
     optimized_K_dict["best_orbit_vals"] = best_orbit_vals
 
     # best kernel
-    best_K, best_K_vals = make_smothing_kernel(best_orbit_vals,
+    best_K, best_K_vals = make_smoothing_kernel(best_orbit_vals,
                                   d4_map,
                                   multiplicities,
                                   b=b,
